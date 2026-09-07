@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/game_controller.gd" id="1_controller"]
+[ext_resource type="PackedScene" path="res://scenes/ui/game_ui.tscn" id="2_ui"]
+
+[node name="main" type="Node"]
+process_mode = 3
+script = ExtResource("1_controller")
+
+[node name="worlds" type="Node3D" parent="."]
+process_mode = 1
+
+[node name="game_ui" parent="." instance=ExtResource("2_ui")]

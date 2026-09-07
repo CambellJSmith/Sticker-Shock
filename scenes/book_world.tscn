@@ -1,0 +1,327 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="Script" path="res://scripts/book_world.gd" id="1_book"]
+[ext_resource type="Script" path="res://scripts/flat_presentation_camera.gd" id="2_flat_camera"]
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 1
+background_color = Color(0.055, 0.061, 0.071, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.72, 0.75, 0.82, 1)
+ambient_light_energy = 0.72
+
+[sub_resource type="StandardMaterial3D" id="Material_desk"]
+albedo_color = Color(0.12, 0.13, 0.145, 1)
+roughness = 0.72
+metallic = 0.05
+
+[sub_resource type="BoxMesh" id="Mesh_desk"]
+material = SubResource("Material_desk")
+size = Vector3(15, 0.28, 10)
+
+[sub_resource type="StandardMaterial3D" id="Material_cover"]
+albedo_color = Color(0.12, 0.055, 0.045, 1)
+roughness = 0.58
+
+[sub_resource type="BoxMesh" id="Mesh_cover"]
+material = SubResource("Material_cover")
+size = Vector3(11.3, 0.18, 7.35)
+
+[sub_resource type="StandardMaterial3D" id="Material_pages"]
+albedo_color = Color(0.92, 0.895, 0.82, 1)
+roughness = 0.93
+
+[sub_resource type="BoxMesh" id="Mesh_pages"]
+material = SubResource("Material_pages")
+size = Vector3(10.75, 0.20, 6.85)
+
+[sub_resource type="StandardMaterial3D" id="Material_page_face"]
+albedo_color = Color(0.985, 0.972, 0.91, 1)
+roughness = 0.94
+
+[sub_resource type="BoxMesh" id="Mesh_left_page"]
+material = SubResource("Material_page_face")
+size = Vector3(5.22, 0.045, 6.66)
+
+[sub_resource type="BoxMesh" id="Mesh_right_page"]
+material = SubResource("Material_page_face")
+size = Vector3(5.22, 0.045, 6.66)
+
+[sub_resource type="StandardMaterial3D" id="Material_spine"]
+albedo_color = Color(0.55, 0.49, 0.40, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="Mesh_spine"]
+material = SubResource("Material_spine")
+size = Vector3(0.12, 0.052, 6.67)
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+bg_color = Color(0.095, 0.105, 0.12, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.23, 0.25, 0.29, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="Style_shop_panel"]
+bg_color = Color(0.075, 0.08, 0.09, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.235, 0.255, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 14.0
+content_margin_top = 12.0
+content_margin_right = 14.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="Style_shop_button"]
+bg_color = Color(0.16, 0.17, 0.19, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.27, 0.29, 0.32, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_top = 7.0
+content_margin_right = 12.0
+content_margin_bottom = 7.0
+
+[sub_resource type="StyleBoxFlat" id="Style_shop_button_hover"]
+bg_color = Color(0.22, 0.235, 0.26, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.41, 0.53, 0.68, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_top = 7.0
+content_margin_right = 12.0
+content_margin_bottom = 7.0
+
+[sub_resource type="StyleBoxFlat" id="Style_shop_button_pressed"]
+bg_color = Color(0.12, 0.13, 0.15, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.51, 0.62, 0.76, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxFlat" id="Style_shop_button_disabled"]
+bg_color = Color(0.105, 0.11, 0.12, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.16, 0.17, 0.18, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_top = 7.0
+content_margin_right = 12.0
+content_margin_bottom = 7.0
+
+[node name="book_world" type="Node3D"]
+script = ExtResource("1_book")
+
+[node name="world" type="Node3D" parent="."]
+
+[node name="environment" type="WorldEnvironment" parent="world"]
+environment = SubResource("Environment_main")
+
+[node name="key_light" type="DirectionalLight3D" parent="world"]
+rotation_degrees = Vector3(-52, -31, -18)
+light_color = Color(1, 0.93, 0.82, 1)
+light_energy = 1.35
+shadow_enabled = true
+directional_shadow_max_distance = 30.0
+
+[node name="fill_light" type="OmniLight3D" parent="world"]
+position = Vector3(-4.5, 4.8, 2.7)
+omni_range = 12.0
+light_color = Color(0.62, 0.72, 1, 1)
+light_energy = 0.58
+shadow_enabled = false
+
+[node name="camera" type="Camera3D" parent="world"]
+current = true
+projection = 1
+size = 9.2
+near = 0.05
+far = 100.0
+script = ExtResource("2_flat_camera")
+
+[node name="book" type="Node3D" parent="world"]
+
+[node name="desk" type="MeshInstance3D" parent="world/book"]
+position = Vector3(0, -0.30, 0)
+mesh = SubResource("Mesh_desk")
+
+[node name="cover" type="MeshInstance3D" parent="world/book"]
+position = Vector3(0, -0.07, 0)
+mesh = SubResource("Mesh_cover")
+
+[node name="page_block" type="MeshInstance3D" parent="world/book"]
+position = Vector3(0, 0.075, 0)
+mesh = SubResource("Mesh_pages")
+
+[node name="left_page" type="MeshInstance3D" parent="world/book"]
+position = Vector3(-2.68, 0.2125, 0)
+mesh = SubResource("Mesh_left_page")
+
+[node name="right_page" type="MeshInstance3D" parent="world/book"]
+position = Vector3(2.68, 0.2125, 0)
+mesh = SubResource("Mesh_right_page")
+
+[node name="spine" type="MeshInstance3D" parent="world/book"]
+position = Vector3(0, 0.218, 0)
+mesh = SubResource("Mesh_spine")
+
+[node name="stickers" type="Node3D" parent="world"]
+
+[node name="interface" type="CanvasLayer" parent="."]
+
+[node name="top_left" type="MarginContainer" parent="interface"]
+offset_left = 194.0
+offset_top = 80.0
+offset_right = 520.0
+offset_bottom = 180.0
+mouse_filter = 2
+
+[node name="panel" type="PanelContainer" parent="interface/top_left"]
+theme_override_styles/panel = SubResource("Style_panel")
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="interface/top_left/panel"]
+theme_override_constants/separation = 5
+mouse_filter = 2
+
+[node name="title" type="Label" parent="interface/top_left/panel/content"]
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.92, 0.96, 1)
+theme_override_font_sizes/font_size = 18
+text = "sticker_book"
+mouse_filter = 2
+
+[node name="instructions" type="Label" parent="interface/top_left/panel/content"]
+theme_override_colors/font_color = Color(0.66, 0.69, 0.74, 1)
+theme_override_font_sizes/font_size = 13
+text = "left_mouse  peel / drag / place\nmouse_wheel  rotate new stickers"
+mouse_filter = 2
+
+[node name="status" type="Label" parent="interface/top_left/panel/content"]
+theme_override_colors/font_color = Color(0.78, 0.83, 0.9, 1)
+theme_override_font_sizes/font_size = 13
+text = "loading stickers..."
+autowrap_mode = 2
+mouse_filter = 2
+
+[node name="top_right" type="MarginContainer" parent="interface"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -206.0
+offset_top = 80.0
+offset_right = -18.0
+offset_bottom = 120.0
+grow_horizontal = 0
+mouse_filter = 2
+
+[node name="shop_button" type="Button" parent="interface/top_right"]
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
+theme_override_styles/normal = SubResource("Style_shop_button")
+theme_override_styles/hover = SubResource("Style_shop_button_hover")
+theme_override_styles/pressed = SubResource("Style_shop_button_pressed")
+theme_override_styles/disabled = SubResource("Style_shop_button_disabled")
+text = "shop"
+
+[node name="cancel_button" type="Button" parent="interface/top_right"]
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
+theme_override_styles/normal = SubResource("Style_shop_button")
+theme_override_styles/hover = SubResource("Style_shop_button_hover")
+theme_override_styles/pressed = SubResource("Style_shop_button_pressed")
+theme_override_styles/disabled = SubResource("Style_shop_button_disabled")
+text = "cancel"
+
+[node name="page_navigation" type="MarginContainer" parent="interface"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -190.0
+offset_top = -74.0
+offset_right = 190.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="panel" type="PanelContainer" parent="interface/page_navigation"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("Style_panel")
+
+[node name="content" type="HBoxContainer" parent="interface/page_navigation/panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="previous_spread" type="Button" parent="interface/page_navigation/panel/content"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
+theme_override_styles/normal = SubResource("Style_shop_button")
+theme_override_styles/hover = SubResource("Style_shop_button_hover")
+theme_override_styles/pressed = SubResource("Style_shop_button_pressed")
+theme_override_styles/disabled = SubResource("Style_shop_button_disabled")
+text = "previous"
+
+[node name="page_label" type="Label" parent="interface/page_navigation/panel/content"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.85, 0.9, 1)
+theme_override_font_sizes/font_size = 14
+text = "pages_1_2"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="next_spread" type="Button" parent="interface/page_navigation/panel/content"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
+theme_override_styles/normal = SubResource("Style_shop_button")
+theme_override_styles/hover = SubResource("Style_shop_button_hover")
+theme_override_styles/pressed = SubResource("Style_shop_button_pressed")
+theme_override_styles/disabled = SubResource("Style_shop_button_disabled")
+text = "next"
