@@ -1,0 +1,832 @@
+[gd_scene load_steps=15 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/game_ui.gd" id="1_ui"]
+[ext_resource type="PackedScene" path="res://scenes/ui/sticker_inspection.tscn" id="2_inspection"]
+
+[sub_resource type="StyleBoxFlat" id="Style_button"]
+bg_color = Color(0.125, 0.135, 0.15, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.235, 0.255, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="Style_button_hover"]
+bg_color = Color(0.165, 0.18, 0.205, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.49, 0.64, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="Style_button_pressed"]
+bg_color = Color(0.095, 0.105, 0.12, 1)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.58, 0.82, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 13.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="Style_focus"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.46, 0.68, 0.92, 0.92)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Style_primary"]
+bg_color = Color(0.20, 0.42, 0.66, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.33, 0.59, 0.86, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 14.0
+content_margin_top = 11.0
+content_margin_right = 14.0
+content_margin_bottom = 11.0
+
+[sub_resource type="StyleBoxFlat" id="Style_primary_hover"]
+bg_color = Color(0.25, 0.50, 0.76, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.43, 0.70, 0.96, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 14.0
+content_margin_top = 11.0
+content_margin_right = 14.0
+content_margin_bottom = 11.0
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+bg_color = Color(0.075, 0.082, 0.095, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.18, 0.195, 0.215, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="Style_nav"]
+bg_color = Color(0.055, 0.06, 0.07, 0.99)
+border_width_right = 1
+border_color = Color(0.16, 0.175, 0.195, 1)
+
+[sub_resource type="StyleBoxFlat" id="Style_top"]
+bg_color = Color(0.065, 0.071, 0.082, 0.98)
+border_width_bottom = 1
+border_color = Color(0.17, 0.185, 0.205, 1)
+
+[sub_resource type="StyleBoxFlat" id="Style_content"]
+bg_color = Color(0.052, 0.057, 0.066, 0.995)
+
+[sub_resource type="StyleBoxFlat" id="Style_toast"]
+bg_color = Color(0.105, 0.12, 0.14, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.55, 0.76, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 16.0
+content_margin_top = 10.0
+content_margin_right = 16.0
+content_margin_bottom = 10.0
+
+[sub_resource type="Theme" id="Theme_game"]
+Button/colors/font_color = Color(0.88, 0.90, 0.93, 1)
+Button/colors/font_hover_color = Color(0.97, 0.98, 1, 1)
+Button/colors/font_pressed_color = Color(0.95, 0.97, 1, 1)
+Button/colors/font_focus_color = Color(0.97, 0.98, 1, 1)
+Button/font_sizes/font_size = 15
+Button/styles/normal = SubResource("Style_button")
+Button/styles/hover = SubResource("Style_button_hover")
+Button/styles/pressed = SubResource("Style_button_pressed")
+Button/styles/focus = SubResource("Style_focus")
+Label/colors/font_color = Color(0.84, 0.86, 0.90, 1)
+Label/font_sizes/font_size = 14
+Panel/styles/panel = SubResource("Style_panel")
+PanelContainer/styles/panel = SubResource("Style_panel")
+
+[node name="game_ui" type="CanvasLayer"]
+process_mode = 3
+layer = 20
+script = ExtResource("1_ui")
+
+[node name="main_menu" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_game")
+
+[node name="background" type="ColorRect" parent="main_menu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.035, 0.039, 0.047, 1)
+mouse_filter = 2
+
+[node name="accent_strip" type="ColorRect" parent="main_menu"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 4.0
+grow_horizontal = 2
+color = Color(0.24, 0.48, 0.74, 1)
+mouse_filter = 2
+
+[node name="layout" type="HBoxContainer" parent="main_menu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 92.0
+offset_top = 76.0
+offset_right = -92.0
+offset_bottom = -76.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 72
+mouse_filter = 2
+
+[node name="menu_column" type="VBoxContainer" parent="main_menu/layout"]
+custom_minimum_size = Vector2(480, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+mouse_filter = 2
+
+[node name="eyebrow" type="Label" parent="main_menu/layout/menu_column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.39, 0.62, 0.86, 1)
+theme_override_font_sizes/font_size = 13
+text = "your sticker desk"
+mouse_filter = 2
+
+[node name="title" type="Label" parent="main_menu/layout/menu_column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 42
+text = "sticker book"
+mouse_filter = 2
+
+[node name="subtitle" type="Label" parent="main_menu/layout/menu_column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.62, 0.69, 1)
+theme_override_font_sizes/font_size = 15
+text = "collect packs, discover stickers, and build a physical book you can peel apart."
+autowrap_mode = 2
+mouse_filter = 2
+
+[node name="spacer" type="Control" parent="main_menu/layout/menu_column"]
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="book_button" type="Button" parent="main_menu/layout/menu_column"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+focus_neighbor_top = NodePath("../quit_button")
+focus_neighbor_bottom = NodePath("../shop_button")
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("Style_primary")
+theme_override_styles/hover = SubResource("Style_primary_hover")
+theme_override_styles/pressed = SubResource("Style_button_pressed")
+text = "open book"
+alignment = 0
+
+[node name="shop_button" type="Button" parent="main_menu/layout/menu_column"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+focus_neighbor_top = NodePath("../book_button")
+focus_neighbor_bottom = NodePath("../collection_button")
+text = "sticker shop"
+alignment = 0
+
+[node name="collection_button" type="Button" parent="main_menu/layout/menu_column"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+focus_neighbor_top = NodePath("../shop_button")
+focus_neighbor_bottom = NodePath("../settings_button")
+text = "collection"
+alignment = 0
+
+[node name="settings_button" type="Button" parent="main_menu/layout/menu_column"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+focus_neighbor_top = NodePath("../collection_button")
+focus_neighbor_bottom = NodePath("../quit_button")
+text = "settings"
+alignment = 0
+
+[node name="quit_button" type="Button" parent="main_menu/layout/menu_column"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+focus_neighbor_top = NodePath("../settings_button")
+focus_neighbor_bottom = NodePath("../book_button")
+text = "quit to desktop"
+alignment = 0
+
+[node name="summary_panel" type="PanelContainer" parent="main_menu/layout"]
+custom_minimum_size = Vector2(390, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="margin" type="MarginContainer" parent="main_menu/layout/summary_panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 28
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="main_menu/layout/summary_panel/margin"]
+layout_mode = 2
+theme_override_constants/separation = 19
+mouse_filter = 2
+
+[node name="heading" type="Label" parent="main_menu/layout/summary_panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.95, 0.97, 1)
+theme_override_font_sizes/font_size = 20
+text = "desk summary"
+mouse_filter = 2
+
+[node name="separator" type="HSeparator" parent="main_menu/layout/summary_panel/margin/content"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="currency" type="Label" parent="main_menu/layout/summary_panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.73, 0.80, 0.89, 1)
+theme_override_font_sizes/font_size = 16
+text = "currency\n---"
+mouse_filter = 2
+
+[node name="collection" type="Label" parent="main_menu/layout/summary_panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.73, 0.80, 0.89, 1)
+theme_override_font_sizes/font_size = 16
+text = "collection\n---"
+mouse_filter = 2
+
+[node name="discoveries" type="Label" parent="main_menu/layout/summary_panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.73, 0.80, 0.89, 1)
+theme_override_font_sizes/font_size = 16
+text = "sticker book\n---"
+mouse_filter = 2
+
+[node name="free_pack" type="Label" parent="main_menu/layout/summary_panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.73, 0.80, 0.89, 1)
+theme_override_font_sizes/font_size = 16
+text = "free pack\n---"
+mouse_filter = 2
+
+[node name="tip_spacer" type="Control" parent="main_menu/layout/summary_panel/margin/content"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="tip" type="Label" parent="main_menu/layout/summary_panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.52, 0.58, 1)
+theme_override_font_sizes/font_size = 12
+text = "peel, move, collect, and arrange every sticker exactly where you want it."
+autowrap_mode = 2
+mouse_filter = 2
+
+[node name="shell" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_game")
+mouse_filter = 2
+
+[node name="nav_panel" type="Panel" parent="shell"]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 176.0
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Style_nav")
+
+[node name="margin" type="MarginContainer" parent="shell/nav_panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 16.0
+offset_right = -12.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="shell/nav_panel/margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+mouse_filter = 2
+
+[node name="brand" type="Label" parent="shell/nav_panel/margin/content"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.94, 0.97, 1)
+theme_override_font_sizes/font_size = 17
+text = "sticker book"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="rule" type="HSeparator" parent="shell/nav_panel/margin/content"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="book" type="Button" parent="shell/nav_panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+toggle_mode = true
+focus_neighbor_top = NodePath("../main_menu")
+focus_neighbor_bottom = NodePath("../shop")
+text = "book"
+alignment = 0
+
+[node name="shop" type="Button" parent="shell/nav_panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+toggle_mode = true
+focus_neighbor_top = NodePath("../book")
+focus_neighbor_bottom = NodePath("../collection")
+text = "shop"
+alignment = 0
+
+[node name="collection" type="Button" parent="shell/nav_panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+toggle_mode = true
+focus_neighbor_top = NodePath("../shop")
+focus_neighbor_bottom = NodePath("../settings")
+text = "collection"
+alignment = 0
+
+[node name="settings" type="Button" parent="shell/nav_panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+toggle_mode = true
+focus_neighbor_top = NodePath("../collection")
+focus_neighbor_bottom = NodePath("../main_menu")
+text = "settings"
+alignment = 0
+
+[node name="nav_spacer" type="Control" parent="shell/nav_panel/margin/content"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="main_menu" type="Button" parent="shell/nav_panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../settings")
+focus_neighbor_bottom = NodePath("../book")
+text = "main menu"
+alignment = 0
+
+[node name="top_bar" type="Panel" parent="shell"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 176.0
+offset_bottom = 64.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("Style_top")
+
+[node name="margin" type="MarginContainer" parent="shell/top_bar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = 8.0
+offset_right = -18.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="content" type="HBoxContainer" parent="shell/top_bar/margin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+mouse_filter = 2
+
+[node name="page_title" type="Label" parent="shell/top_bar/margin/content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.94, 0.95, 0.97, 1)
+theme_override_font_sizes/font_size = 19
+text = "sticker book"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="status" type="HBoxContainer" parent="shell/top_bar/margin/content"]
+layout_mode = 2
+theme_override_constants/separation = 20
+mouse_filter = 2
+
+[node name="currency" type="Label" parent="shell/top_bar/margin/content/status"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.75, 0.84, 1)
+text = "coins  ---"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="free_pack" type="Label" parent="shell/top_bar/margin/content/status"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.75, 0.84, 1)
+text = "free_pack  --:--:--"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="discoveries" type="Label" parent="shell/top_bar/margin/content/status"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.43, 0.66, 0.90, 1)
+text = "pages  2  ·  waiting  0"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="content_overlay" type="Control" parent="shell"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 176.0
+offset_top = 64.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="background" type="Panel" parent="shell/content_overlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Style_content")
+mouse_filter = 0
+
+[node name="collection_page" type="Control" parent="shell/content_overlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="panel" type="PanelContainer" parent="shell/content_overlay/collection_page"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="margin" type="MarginContainer" parent="shell/content_overlay/collection_page/panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="shell/content_overlay/collection_page/panel/margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+mouse_filter = 2
+
+[node name="header" type="HBoxContainer" parent="shell/content_overlay/collection_page/panel/margin/content"]
+layout_mode = 2
+theme_override_constants/separation = 18
+mouse_filter = 2
+
+[node name="title" type="Label" parent="shell/content_overlay/collection_page/panel/margin/content/header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.94, 0.95, 0.97, 1)
+theme_override_font_sizes/font_size = 24
+text = "your collection"
+mouse_filter = 2
+
+[node name="progress" type="Label" parent="shell/content_overlay/collection_page/panel/margin/content/header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.47, 0.68, 0.90, 1)
+text = "0 / 0 designs collected"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="total" type="Label" parent="shell/content_overlay/collection_page/panel/margin/content/header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.62, 0.68, 1)
+text = "0 total sticker copies"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="separator" type="HSeparator" parent="shell/content_overlay/collection_page/panel/margin/content"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="scroll" type="ScrollContainer" parent="shell/content_overlay/collection_page/panel/margin/content"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="grid" type="GridContainer" parent="shell/content_overlay/collection_page/panel/margin/content/scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 5
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+mouse_filter = 2
+
+[node name="settings_page" type="Control" parent="shell/content_overlay"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="panel" type="PanelContainer" parent="shell/content_overlay/settings_page"]
+layout_mode = 1
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 650.0
+offset_bottom = 430.0
+
+[node name="margin" type="MarginContainer" parent="shell/content_overlay/settings_page/panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="shell/content_overlay/settings_page/panel/margin"]
+layout_mode = 2
+theme_override_constants/separation = 15
+mouse_filter = 2
+
+[node name="title" type="Label" parent="shell/content_overlay/settings_page/panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.95, 0.97, 1)
+theme_override_font_sizes/font_size = 24
+text = "settings"
+mouse_filter = 2
+
+[node name="description" type="Label" parent="shell/content_overlay/settings_page/panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.62, 0.68, 1)
+text = "display preferences are saved automatically. navigation supports mouse, keyboard, and the project controller actions."
+mouse_filter = 2
+
+[node name="separator" type="HSeparator" parent="shell/content_overlay/settings_page/panel/margin/content"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="display_heading" type="Label" parent="shell/content_overlay/settings_page/panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.73, 0.80, 0.89, 1)
+theme_override_font_sizes/font_size = 15
+text = "display"
+mouse_filter = 2
+
+[node name="display" type="VBoxContainer" parent="shell/content_overlay/settings_page/panel/margin/content"]
+layout_mode = 2
+theme_override_constants/separation = 9
+mouse_filter = 2
+
+[node name="fullscreen" type="Button" parent="shell/content_overlay/settings_page/panel/margin/content/display"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+focus_neighbor_bottom = NodePath("../vsync")
+text = "fullscreen    off"
+alignment = 0
+
+[node name="vsync" type="Button" parent="shell/content_overlay/settings_page/panel/margin/content/display"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+focus_neighbor_top = NodePath("../fullscreen")
+text = "vsync         on"
+alignment = 0
+
+[node name="hint" type="Label" parent="shell/content_overlay/settings_page/panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46, 0.50, 0.56, 1)
+theme_override_font_sizes/font_size = 12
+text = "controls\nclick sticker  inspect\ndrag sticker  peel / move\ninspection wheel  zoom\ninspection drag  rotate\nescape  back / pause\nButton_Start  pause\nButton_A  confirm"
+mouse_filter = 2
+
+[node name="toast" type="PanelContainer" parent="shell"]
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 440.0
+offset_top = -70.0
+offset_right = -260.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("Style_toast")
+
+[node name="label" type="Label" parent="shell/toast"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.89, 0.92, 0.96, 1)
+text = "finish the current sticker interaction first"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+
+[node name="pause_overlay" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_game")
+mouse_filter = 0
+
+[node name="dimmer" type="ColorRect" parent="pause_overlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.015, 0.018, 0.023, 0.78)
+mouse_filter = 0
+
+[node name="panel" type="PanelContainer" parent="pause_overlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -235.0
+offset_top = -270.0
+offset_right = 235.0
+offset_bottom = 270.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Style_panel")
+
+[node name="margin" type="MarginContainer" parent="pause_overlay/panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 28
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="pause_overlay/panel/margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+mouse_filter = 2
+
+[node name="eyebrow" type="Label" parent="pause_overlay/panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.39, 0.62, 0.86, 1)
+theme_override_font_sizes/font_size = 12
+text = "game paused"
+mouse_filter = 2
+
+[node name="title" type="Label" parent="pause_overlay/panel/margin/content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 30
+text = "sticker book"
+mouse_filter = 2
+
+[node name="separator" type="HSeparator" parent="pause_overlay/panel/margin/content"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="resume_button" type="Button" parent="pause_overlay/panel/margin/content"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+focus_neighbor_top = NodePath("../quit_button")
+focus_neighbor_bottom = NodePath("../book_button")
+theme_override_styles/normal = SubResource("Style_primary")
+theme_override_styles/hover = SubResource("Style_primary_hover")
+text = "resume"
+alignment = 0
+
+[node name="book_button" type="Button" parent="pause_overlay/panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../resume_button")
+focus_neighbor_bottom = NodePath("../shop_button")
+text = "sticker book"
+alignment = 0
+
+[node name="shop_button" type="Button" parent="pause_overlay/panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../book_button")
+focus_neighbor_bottom = NodePath("../settings_button")
+text = "sticker shop"
+alignment = 0
+
+[node name="settings_button" type="Button" parent="pause_overlay/panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../shop_button")
+focus_neighbor_bottom = NodePath("../main_menu_button")
+text = "settings"
+alignment = 0
+
+[node name="main_menu_button" type="Button" parent="pause_overlay/panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../settings_button")
+focus_neighbor_bottom = NodePath("../quit_button")
+text = "main menu"
+alignment = 0
+
+[node name="quit_button" type="Button" parent="pause_overlay/panel/margin/content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../main_menu_button")
+focus_neighbor_bottom = NodePath("../resume_button")
+text = "quit to desktop"
+alignment = 0
+
+[node name="sticker_inspection" parent="." instance=ExtResource("2_inspection")]

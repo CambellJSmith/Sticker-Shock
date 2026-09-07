@@ -1,0 +1,238 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/sticker_inspection.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/sticker_mesh.gd" id="2_sticker_mesh"]
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+bg_color = Color(0.055, 0.06, 0.07, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.19, 0.205, 0.225, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="Style_button"]
+bg_color = Color(0.125, 0.135, 0.15, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.235, 0.255, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Style_button_hover"]
+bg_color = Color(0.165, 0.18, 0.205, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.49, 0.64, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Style_button_pressed"]
+bg_color = Color(0.095, 0.105, 0.12, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.58, 0.82, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Style_focus"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.46, 0.68, 0.92, 0.92)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="Theme" id="Theme_inspection"]
+Button/colors/font_color = Color(0.88, 0.90, 0.93, 1)
+Button/colors/font_hover_color = Color(0.97, 0.98, 1, 1)
+Button/colors/font_pressed_color = Color(0.95, 0.97, 1, 1)
+Button/colors/font_focus_color = Color(0.97, 0.98, 1, 1)
+Button/font_sizes/font_size = 15
+Button/styles/normal = SubResource("Style_button")
+Button/styles/hover = SubResource("Style_button_hover")
+Button/styles/pressed = SubResource("Style_button_pressed")
+Button/styles/focus = SubResource("Style_focus")
+Label/colors/font_color = Color(0.84, 0.86, 0.90, 1)
+Label/font_sizes/font_size = 14
+PanelContainer/styles/panel = SubResource("Style_panel")
+
+[node name="sticker_inspection" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme = SubResource("Theme_inspection")
+script = ExtResource("1_script")
+
+[node name="dimmer" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.012, 0.015, 0.02, 0.90)
+mouse_filter = 0
+
+[node name="top_bar" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 28.0
+offset_top = 22.0
+offset_right = -28.0
+offset_bottom = 82.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("Style_panel")
+
+[node name="content" type="HBoxContainer" parent="top_bar"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="title" type="Label" parent="top_bar/content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.94, 0.95, 0.97, 1)
+theme_override_font_sizes/font_size = 20
+text = "sticker"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="close" type="Button" parent="top_bar/content"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+text = "close"
+
+[node name="stage" type="Control" parent="."]
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = 94.0
+offset_right = -28.0
+offset_bottom = -92.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="stage_background" type="ColorRect" parent="stage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.025, 0.029, 0.035, 1)
+mouse_filter = 2
+
+[node name="viewport_container" type="SubViewportContainer" parent="stage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+
+[node name="sub_viewport" type="SubViewport" parent="stage/viewport_container"]
+own_world_3d = true
+transparent_bg = true
+handle_input_locally = false
+
+[node name="sticker_root" type="Node3D" parent="stage/viewport_container/sub_viewport"]
+
+[node name="sticker_mesh" type="MeshInstance3D" parent="stage/viewport_container/sub_viewport/sticker_root"]
+script = ExtResource("2_sticker_mesh")
+
+[node name="camera" type="Camera3D" parent="stage/viewport_container/sub_viewport"]
+position = Vector3(0, 6, 0)
+rotation_degrees = Vector3(-90, 0, 0)
+projection = 1
+current = true
+size = 4.0
+near = 0.05
+far = 20.0
+
+[node name="key_light" type="DirectionalLight3D" parent="stage/viewport_container/sub_viewport"]
+rotation_degrees = Vector3(-68, -28, 0)
+light_energy = 1.15
+shadow_enabled = false
+
+[node name="fill_light" type="DirectionalLight3D" parent="stage/viewport_container/sub_viewport"]
+rotation_degrees = Vector3(-112, 152, 0)
+light_energy = 0.42
+shadow_enabled = false
+
+[node name="bottom_bar" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = -76.0
+offset_right = -28.0
+offset_bottom = -22.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="hint" type="Label" parent="bottom_bar"]
+custom_minimum_size = Vector2(430, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.66, 0.72, 1)
+text = "left drag: free 3d rotate  ·  right drag: roll  ·  wheel: zoom  ·  q/e: roll"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="zoom_out" type="Button" parent="bottom_bar"]
+custom_minimum_size = Vector2(46, 42)
+layout_mode = 2
+text = "−"
+
+[node name="zoom_label" type="Label" parent="bottom_bar"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "1.00x"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="zoom_in" type="Button" parent="bottom_bar"]
+custom_minimum_size = Vector2(46, 42)
+layout_mode = 2
+text = "+"
+
+[node name="reset" type="Button" parent="bottom_bar"]
+custom_minimum_size = Vector2(92, 42)
+layout_mode = 2
+text = "reset"
