@@ -1,5 +1,5 @@
-class_name BookWorld
-extends Node3D
+class_name BookWorld # Owns the physical multi-page book and sticker interaction.
+extends Node3D # Keeps physical simulation separate from screen-space controls.
 
 const PICK_DISTANCE: float = 100.0 # Defines the maximum camera ray length used for physical sticker selection on the book.
 const MANUAL_RETURN_DELAY: float = 0.34 # Keeps the book visible long enough to see a manually placed sticker complete its bounce-and-slam before returning to the shop.
@@ -9,12 +9,7 @@ const PEEL_DRAG_THRESHOLD_PIXELS: float = 7.0 # Separates a deliberate inspectio
 @onready var _environment_node: WorldEnvironment = $world/environment as WorldEnvironment # References the dedicated book lighting environment so inactive worlds cannot compete for the shared World3D environment.
 @onready var _interface: CanvasLayer = $interface as CanvasLayer # References the book HUD layer so it can be hidden independently from Node3D world visibility.
 @onready var _sticker_root: Node3D = $world/stickers as Node3D # References the composition node that owns every persistent physical sticker attached to the book.
-@onready var _status_label: Label = $interface/top_left/panel/content/status as Label # References the compact contextual interaction status text.
-@onready var _shop_button: Button = $interface/top_right/shop_button as Button # References the editor-authored button that transitions from the book into the separate shop world.
-@onready var _cancel_button: Button = $interface/top_right/cancel_button as Button # References the editor-authored manual-placement cancellation button shown only while carrying a newly won sticker.
-@onready var _previous_spread_button: Button = $interface/page_navigation/panel/content/previous_spread as Button # References the editor-authored control used to turn backward through existing book spreads.
-@onready var _page_label: Label = $interface/page_navigation/panel/content/page_label as Label # References the editor-authored label showing the absolute page numbers currently visible.
-@onready var _next_spread_button: Button = $interface/page_navigation/panel/content/next_spread as Button # References the editor-authored control used to turn forward through already-created book spreads.
+@onready var _hud: BookHUD = $interface/book_hud as BookHUD # Delegates page controls and contextual guidance to the composed native HUD.
 
 var _controller: GameController # Stores the root coordinator that owns world switching, pack transactions, and authoritative persistent models.
 var _environment_resource: Environment # Stores the book environment resource while this world is inactive and its WorldEnvironment is deliberately cleared.
@@ -46,15 +41,19 @@ var _return_to_shop_remaining: float = -1.0 # Stores the short post-placement de
 func configure(controller: GameController, book_state: StickerBookState, catalog: StickerCatalog) -> void: # Binds shared models and reconstructs only the saved physical stickers belonging to the currently open spread.
 	_controller = controller # Stores the coordinator used for world transitions, page creation, and pending-pack placement commits.
 	_environment_resource = _environment_node.environment # Caches this scene's dedicated environment before world switching begins clearing inactive WorldEnvironment resources.
+	_hud.configure(self, book_state, controller) # Binds native HUD actions to this physical book.
 	_book_state = book_state # Stores the authoritative multi-page physical layout model used for movement, navigation, and new placement saves.
 	_catalog = catalog # Stores the sticker catalogue used to load artwork and default physical sizes.
 	_active_spread_index = _book_state.get_active_spread_index() # Restores the exact virtual page pair that was open in the previous session.
 	_rebuild_active_spread() # Composes only the current left/right spread so hidden pages consume no runtime sticker nodes or physics picking.
-	_status_label.text = "click_to_inspect  ·  drag_to_peel" # Shows the deliberate split between non-destructive inspection and realistic physical manipulation.
-	_cancel_button.visible = false # Keeps manual-placement cancellation absent during ordinary book browsing.
+	_hud.set_status("click to inspect · drag to peel") # Shows the deliberate split between non-destructive inspection and realistic physical manipulation.
+	_hud.set_placing(false) # Keeps manual-placement cancellation absent during ordinary book browsing.
 	_refresh_page_navigation() # Updates page numbers and navigation availability for the restored book size.
 
 func set_active(active: bool) -> void: # Enables or disables this complete gameplay world without destroying its persistent physical sticker nodes.
+	if not active: # Resolves physical gestures before this world relinquishes input.
+		suspend_interaction() # Prevents paused or hidden drag state from becoming stranded.
+	process_mode = Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED # Stops hidden world simulation and HUD polling.
 	_active = active # Stores whether book input should currently be interpreted.
 	visible = active # Hides the entire book world while the separate shop world is active.
 	_interface.visible = active # Hides or shows the book HUD explicitly because CanvasLayer visibility is independent from Node3D rendering visibility.
@@ -80,9 +79,9 @@ func begin_manual_placement(sticker_path: String, pending_index: int) -> bool: #
 	$world.add_child(_manual_preview) # Parents the preview into the book world so its world transform matches page coordinates directly.
 	_manual_preview.configure(_manual_sticker_size, texture_resource as Texture2D) # Builds the full realistic artwork-defined sheet and exact projected landing outline.
 	_manual_physical_size = _manual_preview.get_physical_size() # Caches exact artwork bounds once so pointer movement never regenerates contour data.
-	_cancel_button.visible = true # Shows the explicit escape route back to the shop while the pending sticker remains unresolved.
-	_shop_button.visible = false # Hides the ordinary shop navigation button while this visit already originated from the pack reveal.
-	_status_label.text = "move_to_place  ·  click_to_stick  ·  stickers_stay_upright" # Explains manual placement while making the canonical book orientation explicit.
+	_hud.set_placing(true) # Shows the explicit escape route back to the shop while the pending sticker remains unresolved.
+
+	_hud.set_status("move over a page · click to place") # Explains manual placement while making the canonical book orientation explicit.
 	_update_manual_preview(get_viewport().get_mouse_position()) # Positions the newly created sticker immediately beneath the current pointer when possible.
 	return true # Reports that the physical pending sticker successfully entered manual book placement mode.
 
@@ -90,6 +89,7 @@ func add_placement_record(placement: Dictionary, animate_landing: bool) -> void:
 	var page_index: int = maxi(int(placement.get("page", 0)), 0) # Retrieves the persistent absolute page assigned to the new sticker.
 	if StickerBookLayout.get_spread_index_for_page(page_index) != _active_spread_index: # Detects a placement committed onto a different virtual spread.
 		return # Leaves hidden-spread rendering deferred until the player turns to that spread.
+	_hud.refresh() # Clears first-session guidance immediately after the first placement.
 	_spawn_placement_record(placement, animate_landing) # Reuses the same reconstruction path while optionally playing the requested bounce-and-slam arrival.
 
 func show_spread(spread_index: int) -> void: # Opens one already-created virtual spread and reconstructs only the stickers physically attached to those two pages.
@@ -103,7 +103,7 @@ func show_spread(spread_index: int) -> void: # Opens one already-created virtual
 	_book_state.set_active_spread_index(_active_spread_index) # Persists navigation so the same spread reopens after restarting the game.
 	_rebuild_active_spread() # Replaces old visible sticker nodes with the physical contents of the selected page pair.
 	_refresh_page_navigation() # Updates absolute page numbers and previous/next button availability.
-	_status_label.text = "pages_%d_%d" % [_active_spread_index * StickerBookLayout.PAGES_PER_SPREAD + 1, _active_spread_index * StickerBookLayout.PAGES_PER_SPREAD + 2] # Confirms which physical pages are now open using one-based player-facing numbering.
+	_hud.set_status("pages %d — %d" % [_active_spread_index * StickerBookLayout.PAGES_PER_SPREAD + 1, _active_spread_index * StickerBookLayout.PAGES_PER_SPREAD + 2]) # Confirms which physical pages are now open using one-based player-facing numbering.
 
 func show_auto_placements(placements: Array[Dictionary]) -> void: # Shows the newest auto-packed spread and plays landing impacts for newly committed stickers visible on that spread.
 	if placements.is_empty(): # Rejects empty result batches without rebuilding the current visible book spread.
@@ -125,7 +125,7 @@ func show_auto_placements(placements: Array[Dictionary]) -> void: # Shows the ne
 			continue # Leaves those physical copies to normal reconstruction when that spread is opened later.
 		_spawn_placement_record(placement, true) # Creates the visible new sticker above its solved target and plays its bounce-and-slam arrival.
 	_refresh_page_navigation() # Updates controls because auto-stick may have appended one or more new page pairs.
-	_status_label.text = "auto_stick_packed_the_stickers_into_the_book" # Confirms that alpha-silhouette packing has been committed across the multi-page book.
+	_hud.set_status("all tucked in. make this spread your own.") # Confirms that alpha-silhouette packing has been committed across the multi-page book.
 
 func _rebuild_active_spread(excluded_ids: Dictionary = {}) -> void: # Recreates only the currently open virtual spread while optionally withholding selected new placements for landing animation.
 	_active_sticker = null # Releases any stale peel ownership before old visible sticker nodes are removed.
@@ -147,11 +147,7 @@ func _rebuild_active_spread(excluded_ids: Dictionary = {}) -> void: # Recreates 
 func _refresh_page_navigation() -> void: # Synchronizes page-number text and editor-authored navigation button availability with persistent book size.
 	if _book_state == null: # Rejects UI refresh before multi-page persistence is configured.
 		return # Leaves editor defaults intact during startup.
-	var left_page_number: int = _active_spread_index * StickerBookLayout.PAGES_PER_SPREAD + 1 # Converts the zero-based virtual left page into a one-based player-facing page number.
-	var right_page_number: int = left_page_number + 1 # Calculates the one-based right page number paired with the visible left page.
-	_page_label.text = "pages_%d_%d" % [left_page_number, right_page_number] # Shows the exact absolute page pair currently represented by the physical book meshes.
-	_previous_spread_button.disabled = _active_spread_index <= 0 # Prevents navigation before the first persistent spread.
-	_next_spread_button.disabled = _active_spread_index >= _book_state.get_spread_count() - 1 # Prevents navigation beyond the newest spread until placement pressure creates another pair.
+	_hud.refresh() # Synchronizes page bounds and the compact progress label.
 
 func _change_spread(direction: int) -> void: # Turns one virtual spread backward or forward without allocating pages manually.
 	if _active_sticker != null or _pressed_sticker != null: # Prevents a page turn from destroying a sticker currently owned by an active or not-yet-resolved pointer gesture.
@@ -171,7 +167,7 @@ func _process(delta: float) -> void: # Advances only the short manual-placement 
 		_return_to_shop_remaining = -1.0 # Clears the one-shot transition timer before calling back into the coordinator.
 		_controller.show_shop() # Returns to the same shop reveal so the player can manually select another remaining won sticker.
 
-func _input(event: InputEvent) -> void: # Owns book pointer behavior while separating simple inspection clicks from thresholded peel drags without signals.
+func _unhandled_input(event: InputEvent) -> void: # Owns book pointer behavior while separating simple inspection clicks from thresholded peel drags without signals.
 	if not _active: # Ignores every pointer event while another destination owns presentation.
 		return # Prevents hidden book collisions or controls from responding across navigation transitions.
 	if _controller != null and _controller.is_gameplay_input_blocked(): # Detects pause, inspection, and other modal interface states that deliberately suspend physical interaction.
@@ -181,22 +177,8 @@ func _input(event: InputEvent) -> void: # Owns book pointer behavior while separ
 		var releasing_world_gesture: bool = mouse_button.button_index == MOUSE_BUTTON_LEFT and not mouse_button.pressed and (_active_sticker != null or _pressed_sticker != null) # Detects releases that must terminate a gesture even after the pointer crosses global UI.
 		if _controller != null and _controller.is_pointer_over_game_ui(mouse_button.position) and not releasing_world_gesture: # Blocks new UI-owned presses while preserving release ownership for a gesture that started in the book.
 			return # Prevents navigation clicks from interacting with physical stickers underneath the shell.
-		if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_LEFT and _cancel_button.visible and _cancel_button.get_global_rect().has_point(mouse_button.position): # Detects explicit cancellation during manual pending-sticker placement.
-			_cancel_manual_placement() # Returns the unresolved sticker to the shop reveal without changing persistence.
-			get_viewport().set_input_as_handled() # Prevents the same click from also placing or selecting something beneath the button.
-			return # Completes cancellation as the sole action for this pointer press.
-		if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_LEFT and _previous_spread_button.visible and _previous_spread_button.get_global_rect().has_point(mouse_button.position): # Detects a request to turn backward one existing page spread.
-			_change_spread(-1) # Rebuilds the visible book from the preceding virtual left/right page pair.
-			get_viewport().set_input_as_handled() # Prevents the page-turn click from selecting a sticker underneath navigation.
-			return # Completes backward page navigation as the sole action for this press.
-		if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_LEFT and _next_spread_button.visible and _next_spread_button.get_global_rect().has_point(mouse_button.position): # Detects a request to turn forward one already-created page spread.
-			_change_spread(1) # Rebuilds the visible book from the following virtual left/right page pair.
-			get_viewport().set_input_as_handled() # Prevents the page-turn click from reaching physical page content below the HUD.
-			return # Completes forward page navigation as the sole action for this press.
-		if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_LEFT and _shop_button.visible and _shop_button.get_global_rect().has_point(mouse_button.position): # Detects ordinary navigation from book browsing into the separate shop world.
-			_controller.show_shop() # Switches presentation without overlaying shop content on the book.
-			get_viewport().set_input_as_handled() # Prevents the navigation click from selecting a sticker behind the button.
-			return # Completes world navigation as the sole action for this pointer press.
+		if _hud.owns_pointer(mouse_button.position) and not releasing_world_gesture: # Excludes HUD panels and blank toolbar space from physical gestures.
+			return # Leaves this pointer press to the native interface.
 		if _manual_preview != null: # Routes remaining primary-button behavior into new-sticker placement while a pack result is carried.
 			if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_LEFT: # Treats a normal left press as the physical act of sticking the selected pack result down.
 				_commit_manual_placement() # Converts the pending sticker into persistent book state only when the current upright target is valid.
@@ -219,9 +201,9 @@ func _input(event: InputEvent) -> void: # Owns book pointer behavior while separ
 			if page_point is Vector3: # Updates peel physics only when the camera ray reaches the page plane successfully.
 				_active_sticker.update_drag(page_point as Vector3) # Sends the physical world target into the clicked-point-driven peel simulation.
 				if _active_sticker.is_carried(): # Detects the irreversible full-peel carry state.
-					_status_label.text = "fully_peeled  ·  outline_shows_release_landing" # Explains the exact projected landing guide while the sticker is detached.
+					_hud.set_status("ready to move · release to place") # Explains the exact projected landing guide while the sticker is detached.
 				else: # Handles the still-attached portion of the realistic peel.
-					_status_label.text = "peeling  ·  release_to_restick" # Explains that incomplete material stays peeled until release.
+					_hud.set_status("peeling · release to restick") # Explains that incomplete material stays peeled until release.
 
 func _begin_pointer_interaction(screen_position: Vector2) -> void: # Selects one settled sticker but waits for click-versus-drag intent before restacking or deforming it.
 	if _active_sticker != null or _pressed_sticker != null: # Prevents a second press from stealing gesture ownership.
@@ -233,14 +215,14 @@ func _begin_pointer_interaction(screen_position: Vector2) -> void: # Selects one
 	query.collide_with_bodies = false # Excludes unrelated book geometry from physical sticker selection.
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query) # Finds the nearest physical sticker beneath the flat presentation pointer.
 	if hit.is_empty(): # Handles clicks that land on bare paper instead of a sticker.
-		_status_label.text = "click_directly_on_a_sticker" # Gives compact feedback without starting any interaction state.
+		_hud.set_status("click a sticker to inspect it, or drag to peel") # Gives compact feedback without starting any interaction state.
 		return # Leaves book interaction idle after an empty page click.
 	var collider: Object = hit.get("collider") as Object # Retrieves the selected physics object from the ray result.
 	if collider is not Sticker: # Rejects any future layer-one area that is not a realistic sticker composition.
 		return # Keeps inspection and peel logic isolated from unrelated interactables.
 	var selected_sticker: Sticker = collider as Sticker # Narrows the selected area to the realistic sticker API.
 	if not selected_sticker.can_begin_drag(): # Prevents clicks while a sticker is still returning or landing autonomously.
-		_status_label.text = "that_sticker_is_still_landing" # Explains why the sticker cannot yet be inspected or peeled.
+		_hud.set_status("let that sticker settle for a moment") # Explains why the sticker cannot yet be inspected or peeled.
 		return # Leaves its physical animation uninterrupted.
 	var page_point: Variant = _screen_to_page(screen_position) # Finds the exact stable page-plane material point beneath the press.
 	if page_point is not Vector3: # Rejects the unlikely case of a camera ray that cannot reach the page plane.
@@ -248,7 +230,7 @@ func _begin_pointer_interaction(screen_position: Vector2) -> void: # Selects one
 	_pressed_sticker = selected_sticker # Stores the settled sticker without changing its stack or physical deformation yet.
 	_pressed_screen_position = screen_position # Stores the press coordinate used by the drag-intent threshold.
 	_pressed_page_point = page_point as Vector3 # Stores the exact material point that will become the peel origin only if the gesture turns into a drag.
-	_status_label.text = "release_to_inspect  ·  drag_to_peel" # Makes the two distinct interactions discoverable at the moment a sticker is pressed.
+	_hud.set_status("release to inspect · drag to peel") # Makes the two distinct interactions discoverable at the moment a sticker is pressed.
 
 func _start_pressed_sticker_peel() -> void: # Converts the pending click candidate into the existing realistic peel only after deliberate drag movement.
 	if _pressed_sticker == null or _active_sticker != null: # Rejects activation without a unique settled candidate.
@@ -264,7 +246,7 @@ func _start_pressed_sticker_peel() -> void: # Converts the pending click candida
 	if not _active_placement_id.is_empty(): # Persists restacking immediately so a mid-drag shutdown cannot restore this sticker beneath older layers.
 		_book_state.update_placement(_active_placement_id, _active_placement_page, Vector2(_active_sticker.global_position.x, _active_sticker.global_position.z), _stack_counter) # Stores page, position, canonical orientation, and newest stack order.
 	_active_sticker.begin_drag(_pressed_page_point) # Starts the curl from the exact original press point rather than the later threshold-crossing pointer position.
-	_status_label.text = "peeling_from_the_exact_point_you_grabbed" # Confirms successful delayed physical gesture activation.
+	_hud.set_status("keep dragging to lift the sticker") # Confirms successful delayed physical gesture activation.
 
 func _end_pointer_interaction(screen_position: Vector2) -> void: # Resolves a book gesture into inspection when it stayed a click or physical release when it became a drag.
 	if _active_sticker != null: # Gives an already activated peel first ownership of the matching release.
@@ -284,9 +266,9 @@ func _end_pointer_interaction(screen_position: Vector2) -> void: # Resolves a bo
 	var sticker_path: String = str(_sticker_paths.get(runtime_id, "")) # Resolves the immutable source resource used by the independent 2D inspection presentation.
 	_pressed_sticker = null # Releases click ownership before opening the modal so no physical gesture remains pending underneath it.
 	if _controller != null and _controller.show_sticker_inspection(sticker_path): # Opens a non-destructive large flat presentation when the source artwork can be loaded.
-		_status_label.text = "inspection_open  ·  book_rotation_unchanged" # Confirms that inspection transforms are temporary and separate from the page sticker.
+		_hud.set_status("click to inspect · drag to peel") # Confirms that inspection transforms are temporary and separate from the page sticker.
 	else: # Handles a missing source path or unexpected texture load failure.
-		_status_label.text = "could_not_open_sticker_inspection" # Reports the failed inspection without changing the physical sticker.
+		_hud.set_status("this sticker could not be opened") # Reports the failed inspection without changing the physical sticker.
 
 func _finish_active_peel() -> void: # Releases an already activated sticker peel and persists only upright canonical page orientation.
 	if _active_sticker == null: # Rejects calls without an active physical sticker gesture.
@@ -304,9 +286,9 @@ func _finish_active_peel() -> void: # Releases an already activated sticker peel
 	if not _active_placement_id.is_empty(): # Updates persistence for moved and partial-peel releases while canonical orientation remains enforced by book state.
 		_book_state.update_placement(_active_placement_id, final_page, final_world_xz, stack_order) # Stores the release page, x/z placement, canonical source orientation, and current paper layer.
 	if moved: # Reports a complete peel committing to a new horizontal page position.
-		_status_label.text = "released  ·  bounce_then_slam_flat" # Describes the autonomous landing now running.
+		_hud.set_status("placed · looking good") # Describes the autonomous landing now running.
 	else: # Reports an incomplete peel that never detached from its original page position.
-		_status_label.text = "released  ·  partial_peel_resticking" # Describes the autonomous curl relaxation after button release.
+		_hud.set_status("back where it belongs") # Describes the autonomous curl relaxation after button release.
 	_active_sticker = null # Releases pointer ownership immediately while the Sticker component finishes its autonomous animation.
 	_active_placement_id = "" # Clears the persistent identifier associated with the completed gesture.
 	_active_placement_page = StickerBookLayout.get_first_page_index_for_spread(_active_spread_index) # Restores harmless page metadata after the completed gesture.
@@ -328,9 +310,9 @@ func _update_manual_preview(screen_position: Vector2) -> void: # Projects the po
 	var preview_height: float = StickerBookLayout.get_stack_height(preview_stack_order) # Converts the predicted target-page stack into the physical landing-preview height.
 	_manual_preview.update_target(_manual_world_xz, 0.0, _manual_target_valid, preview_height) # Updates both the floating sticker and exact alpha-silhouette landing projection.
 	if _manual_target_valid: # Gives immediate textual confirmation when the full physical sticker fits.
-		_status_label.text = "click_to_stick  ·  original_rotation_locked" # Keeps the valid placement instruction concise while confirming canonical book orientation.
+		_hud.set_status("click to place your sticker") # Keeps the valid placement instruction concise while confirming canonical book orientation.
 	else: # Explains why a pointer position near margins or the spine cannot be committed.
-		_status_label.text = "move_the_whole_sticker_inside_one_page" # Makes the full-sheet page-boundary requirement explicit.
+		_hud.set_status("keep the whole sticker inside a page") # Makes the full-sheet page-boundary requirement explicit.
 
 func _manual_target_fits_page(world_xz: Vector2) -> bool: # Tests whether the complete upright artwork rectangle fits inside one usable page before placement.
 	var local_page_index: int = StickerBookLayout.get_local_page_index(world_xz) # Finds which visible page contains the preview center.
@@ -345,10 +327,10 @@ func _commit_manual_placement() -> void: # Converts the currently previewed won 
 		return # Leaves the pending pack untouched until the player chooses a valid physical target.
 	var committed: bool = _controller.commit_manual_placement(_manual_pending_index, _manual_sticker_path, _manual_sticker_size, _manual_target_page, _manual_world_xz) # Lets the root coordinator validate current pending identity and persist the physical placement on the selected absolute page atomically.
 	if not committed: # Handles a stale pending index or any unexpected authoritative-state mismatch safely.
-		_status_label.text = "could_not_place_that_pending_sticker" # Reports that persistence rejected the physical commit.
+		_hud.set_status("could not place this sticker. try again.") # Reports that persistence rejected the physical commit.
 		return # Keeps the preview active so the player does not silently lose a won sticker.
 	_clear_manual_preview() # Removes the temporary floating sheet and projected guide because a real physical Sticker now owns the committed placement.
-	_status_label.text = "stuck  ·  returning_to_pack" # Confirms the physical placement while the new sticker completes its bounce-and-slam.
+	_hud.set_status("stuck! back to your pack…") # Confirms the physical placement while the new sticker completes its bounce-and-slam.
 	_return_to_shop_remaining = MANUAL_RETURN_DELAY # Keeps the book visible briefly before restoring the remaining pack reveal.
 
 func cancel_manual_placement_for_navigation() -> void: # Exposes safe temporary-placement and post-placement transition cancellation to the top-level navigation coordinator.
@@ -356,7 +338,7 @@ func cancel_manual_placement_for_navigation() -> void: # Exposes safe temporary-
 	if _manual_preview == null: # Detects ordinary book browsing where no pack sticker is currently being carried.
 		return # Leaves the physical book untouched when there is no temporary placement preview to clear.
 	_clear_manual_preview() # Removes the temporary sticker and landing guide while leaving the authoritative pending pack copy unresolved.
-	_status_label.text = "placement_cancelled" # Leaves compact local feedback when navigation later returns to the book.
+	_hud.set_status("placement cancelled") # Leaves compact local feedback when navigation later returns to the book.
 
 func _cancel_manual_placement() -> void: # Abandons the current book placement visit without consuming or moving the pending physical sticker.
 	_clear_manual_preview() # Removes the temporary floating sheet and exact page projection.
@@ -372,8 +354,8 @@ func _clear_manual_preview() -> void: # Clears all runtime state associated with
 	_manual_physical_size = Vector2.ONE # Restores harmless artwork bounds after the temporary placement composition is cleared.
 	_manual_target_valid = false # Prevents any stale page target from being committed after the preview is gone.
 	_manual_target_page = -1 # Clears the persistent virtual page associated with the discarded or committed preview.
-	_cancel_button.visible = false # Hides manual-only cancellation during ordinary book browsing.
-	_shop_button.visible = true # Restores ordinary navigation into the separate shop world.
+	_hud.set_placing(false) # Hides manual-only cancellation during ordinary book browsing.
+
 
 func _screen_to_page(screen_position: Vector2) -> Variant: # Intersects a book-camera ray with the stable flat page plane for peel and placement coordinates.
 	var ray_origin: Vector3 = _camera.project_ray_origin(screen_position) # Creates the world-space ray origin matching the current screen point.
@@ -409,3 +391,29 @@ func _spawn_placement_record(placement: Dictionary, animate_landing: bool) -> vo
 	_stack_counter = maxi(_stack_counter, stack_order) # Ensures future grabs and new placements always rise above this restored sticker.
 	if animate_landing: # Plays the requested physical arrival only for newly committed manual or auto-packed stickers.
 		sticker.begin_new_sticker_landing(Vector2(sticker.global_position.x, sticker.global_position.z), stack_height) # Starts the little upward kick followed by the hard flat page slam.
+
+func _input(event: InputEvent) -> void: # Completes existing gestures even when the pointer is released over native UI.
+	if not _active or _controller.is_gameplay_input_blocked(): # Leaves inactive and modal destinations in control.
+		return # Defers to the surface that owns input.
+	if event is InputEventMouseButton: # Checks only physical pointer releases.
+		var mouse: InputEventMouseButton = event as InputEventMouseButton # Narrows the release event.
+		if mouse.button_index == MOUSE_BUTTON_LEFT and not mouse.pressed and (_active_sticker != null or _pressed_sticker != null): # Detects completion of an already-owned world gesture.
+			_end_pointer_interaction(mouse.position) # Finalizes the peel or click exactly once.
+			get_viewport().set_input_as_handled() # Prevents the release from activating an unrelated native control.
+
+func suspend_interaction() -> void: # Resolves a physical gesture before pause or navigation changes input ownership.
+	if _active_sticker != null: # Detects a currently attached or carried peel.
+		_finish_active_peel() # Resticks and saves its final state through the existing physics logic.
+	_pressed_sticker = null # Cancels an uncommitted click candidate before opening a modal.
+
+func request_spread_change(direction: int) -> void: # Exposes controlled page navigation to the native HUD.
+	_change_spread(direction) # Preserves the existing busy and page-boundary guards.
+
+func cancel_manual_placement() -> void: # Returns a selected pending sticker to its pack without consuming it.
+	_cancel_manual_placement() # Uses the existing placement cancellation path.
+
+func get_ui() -> BookHUD: # Exposes the composed HUD for scoped keyboard navigation.
+	return _hud # Keeps UI ownership within the book component.
+
+func has_manual_placement() -> bool: # Reports whether a pending copy is currently being positioned.
+	return _active and _manual_preview != null # Excludes hidden worlds and completed placements.
