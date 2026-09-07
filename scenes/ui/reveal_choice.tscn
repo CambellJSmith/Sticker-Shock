@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="1"]
+
+
+[node name="reveal_choice" type="Button"]
+script = ExtResource("1")
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(100, 64)
+mouse_default_cursor_shape = 2
+text = "place sticker"
+text_overrun_behavior = 3
+clip_text = true

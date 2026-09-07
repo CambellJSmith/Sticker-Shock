@@ -1,5 +1,5 @@
-class_name GameController
-extends Node
+class_name GameController # Coordinates physical worlds, persistence, and the composed game interface.
+extends Node # Remains active while physical worlds are paused.
 
 const BOOK_WORLD_SCENE: PackedScene = preload("res://scenes/book_world.tscn") # Preloads the persistent physical sticker-book world as an independent gameplay scene.
 const SHOP_WORLD_SCENE: PackedScene = preload("res://scenes/shop_world.tscn") # Preloads the physically separate pack shop and reveal world.
@@ -17,9 +17,12 @@ var _book_world: BookWorld # Stores the long-lived physical sticker-book gamepla
 var _shop_world: ShopWorld # Stores the long-lived physically separate sticker-pack shop scene.
 var _initialized: bool = false # Guards shutdown recovery logic until persistent models have completed startup initialization.
 var _last_gameplay_destination: String = "book" # Stores the most recent physical destination so overlay pages and pause resume into the expected world.
+var _new_pack_designs: Dictionary[String, bool] = {} # Tracks newly discovered designs for the current reward reveal.
 var _quit_requested: bool = false # Prevents repeated close actions from running automatic pending-sticker placement and save work more than once.
 
 func _ready() -> void: # Initializes progression, composes long-lived physical worlds, configures the persistent UX shell, and starts at the main menu.
+	get_window().title = "Sticker-Shock" # Uses the game identity without moving the existing user-data directory.
+	get_window().min_size = Vector2i(960, 640) # Keeps native controls usable at supported desktop window sizes.
 	get_tree().auto_accept_quit = false # Lets this coordinator finish pending-sticker auto-placement and persistence before any desktop close actually exits.
 	_catalog.rebuild() # Discovers every compatible sticker artwork resource before collection, packs, or physical placement sizing can be used.
 	_economy.initialize() # Restores currency, owned counts, and the real-world free-pack eligibility timestamp from user storage.
@@ -125,6 +128,11 @@ func _cancel_manual_placement_for_navigation() -> void: # Returns a temporarily 
 func purchase_pack(use_free_pack: bool) -> bool: # Performs one authoritative pack transaction and creates a persistent five-sticker physical pending reveal.
 	if _book_state.has_pending_stickers(): # Prevents multiple opened physical packs from overlapping before the current reveal enters the book.
 		return false # Rejects the transaction without deducting currency or changing the free-pack cooldown.
+	var previously_owned: Dictionary[String, bool] = {} # Snapshots discoveries before the transaction grants its rewards.
+	for index: int in range(_catalog.get_sticker_count()): # Reads ownership once per pack purchase.
+		var path: String = _catalog.get_sticker_path(index) # Reads the catalogue identity.
+		if _economy.get_owned_count(path) > 0: # Records designs discovered before opening this pack.
+			previously_owned[path] = true # Distinguishes newly discovered artwork from existing duplicates.
 	var pack: PackedStringArray = PackedStringArray() # Stores the exact five won sticker paths returned by the selected transaction route.
 	if use_free_pack: # Selects the real-world cooldown claim path for the free-pack button.
 		pack = _economy.claim_free_pack(_catalog) # Atomically grants ownership, starts the next six-hour timestamp, and saves economy progression.
@@ -135,6 +143,10 @@ func purchase_pack(use_free_pack: bool) -> bool: # Performs one authoritative pa
 	if not _book_state.set_pending_pack(pack): # Persists the exact five physical won copies before beginning any reveal animation.
 		push_error("economy pack succeeded but physical pending pack could not be established") # Reports an invariant failure that should be impossible after the pre-transaction pending check.
 		return false # Prevents visual reveal from diverging further from authoritative physical state.
+	_new_pack_designs.clear() # Starts discovery presentation for the newly opened pack.
+	for path: String in pack: # Compares granted artwork with the pre-transaction collection.
+		if not previously_owned.has(path): # Detects a genuinely new design.
+			_new_pack_designs[path] = true # Makes the discovery badge available to the shop HUD.
 	_shop_world.show_pending(true) # Throws the five won physical sticker sheets into the separate shop display with staggered rotating reveal animation.
 	_game_ui.notify_progress_changed() # Refreshes currency, free-pack status, collection completion, and pending-pack badges immediately after the transaction.
 	return true # Reports a complete pack acquisition and reveal-state commit.
@@ -192,6 +204,8 @@ func auto_stick_pending(show_result_in_book: bool) -> int: # Tight-packs every u
 	elif _shop_world != null: # Refreshes shop presentation when no placement was possible or auto-placement was invoked without a world switch.
 		_shop_world.show_pending(false) # Rebuilds any unresolved reveal copies using their current authoritative pending indices.
 	_game_ui.notify_progress_changed() # Refreshes page-count and pending-pack status after automatic placement expands or fills the book.
+	if not new_placements.is_empty(): # Gives the completed packing action a visible result.
+		_game_ui.show_toast("%d stickers added to your book" % new_placements.size()) # Confirms the exact number of saved copies.
 	return new_placements.size() # Returns how many physical sticker copies were successfully committed by the solver.
 
 func _auto_place_pending_records() -> Array[Dictionary]: # Solves and persists every pending sticker sequentially while reusing one active-spread snapshot for the complete pack.
@@ -228,3 +242,25 @@ func _notification(what: int) -> void: # Routes operating-system close requests 
 		return # Leaves startup teardown behavior untouched until initialization completes.
 	if what == NOTIFICATION_WM_CLOSE_REQUEST: # Detects a normal desktop window-manager close request.
 		request_quit() # Resolves pending stickers, saves the multi-page book, and quits exactly once.
+
+func prepare_for_modal() -> void: # Resolves world gestures before a modal takes input ownership.
+	if _book_world != null: # Handles early initialization safely.
+		_book_world.suspend_interaction() # Saves and releases an in-progress peel before pausing.
+
+func get_active_world_ui() -> Control: # Supplies the active physical HUD to scoped menu navigation.
+	return _shop_world.get_ui() if _last_gameplay_destination == "shop" else _book_world.get_ui() # Keeps native world actions in the active keyboard focus scope.
+
+func focus_active_world_ui() -> void: # Selects the useful native action for the active physical destination.
+	if _last_gameplay_destination == "shop": # Detects the pack-opening world.
+		_shop_world.get_ui().focus_primary() # Prioritizes free packs or unresolved reward choices.
+	else: # Handles book browsing and manual placement.
+		_book_world.get_ui().focus_primary() # Prioritizes onboarding, cancellation, or page navigation.
+
+func is_new_pack_design(path: String) -> bool: # Exposes current-pack discovery status without exposing mutable economy data.
+	return _new_pack_designs.has(path) # Identifies artwork first discovered in this reward reveal.
+
+func cancel_pending_placement() -> bool: # Gives the global back action a safe manual-placement exit.
+	if _book_world == null or not _book_world.has_manual_placement(): # Rejects cancellation when no pending copy is being positioned.
+		return false # Allows the shell to fall back to pause.
+	_book_world.cancel_manual_placement() # Returns the exact pending copy to its open pack.
+	return true # Confirms that back handled a placement instead of opening pause.

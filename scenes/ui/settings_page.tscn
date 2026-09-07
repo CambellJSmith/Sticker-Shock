@@ -1,0 +1,231 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/settings_page.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/left.svg" id="3"]
+
+
+[node name="settings_page" type="MarginContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_bottom = 28
+
+[node name="scroll" type="ScrollContainer" parent="."]
+horizontal_scroll_mode = 0
+follow_focus = true
+
+[node name="content" type="VBoxContainer" parent="scroll"]
+theme_override_constants/separation = 18
+size_flags_horizontal = 3
+
+[node name="title" type="Label" parent="scroll/content"]
+text = "make yourself comfortable"
+mouse_filter = 2
+theme_type_variation = "HeadingLabel"
+
+[node name="subtitle" type="Label" parent="scroll/content"]
+text = "changes are saved automatically"
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+
+[node name="display" type="PanelContainer" parent="scroll/content"]
+
+
+[node name="rows" type="VBoxContainer" parent="scroll/content/display"]
+theme_override_constants/separation = 16
+
+[node name="display_title" type="Label" parent="scroll/content/display/rows"]
+text = "display"
+mouse_filter = 2
+theme_type_variation = "AccentLabel"
+
+[node name="fullscreen_row" type="HBoxContainer" parent="scroll/content/display/rows"]
+theme_override_constants/separation = 24
+
+[node name="text" type="VBoxContainer" parent="scroll/content/display/rows/fullscreen_row"]
+theme_override_constants/separation = 4
+size_flags_horizontal = 3
+
+[node name="title" type="Label" parent="scroll/content/display/rows/fullscreen_row/text"]
+text = "fullscreen"
+mouse_filter = 2
+theme_override_font_sizes/font_size = 18
+
+[node name="description" type="Label" parent="scroll/content/display/rows/fullscreen_row/text"]
+text = "fill your display with your sticker desk"
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+
+[node name="fullscreen" type="Button" parent="scroll/content/display/rows/fullscreen_row"]
+text = "off"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+custom_minimum_size = Vector2(110, 44)
+toggle_mode = true
+theme_type_variation = "QuietButton"
+unique_name_in_owner = true
+
+[node name="vsync_row" type="HBoxContainer" parent="scroll/content/display/rows"]
+theme_override_constants/separation = 24
+
+[node name="text" type="VBoxContainer" parent="scroll/content/display/rows/vsync_row"]
+theme_override_constants/separation = 4
+size_flags_horizontal = 3
+
+[node name="title" type="Label" parent="scroll/content/display/rows/vsync_row/text"]
+text = "vertical sync"
+mouse_filter = 2
+theme_override_font_sizes/font_size = 18
+
+[node name="description" type="Label" parent="scroll/content/display/rows/vsync_row/text"]
+text = "reduce screen tearing while you play"
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+
+[node name="vsync" type="Button" parent="scroll/content/display/rows/vsync_row"]
+text = "off"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+custom_minimum_size = Vector2(110, 44)
+toggle_mode = true
+theme_type_variation = "QuietButton"
+unique_name_in_owner = true
+
+[node name="controls" type="PanelContainer" parent="scroll/content"]
+
+
+[node name="rows" type="VBoxContainer" parent="scroll/content/controls"]
+theme_override_constants/separation = 12
+
+[node name="controls_title" type="Label" parent="scroll/content/controls/rows"]
+text = "at your desk"
+mouse_filter = 2
+theme_type_variation = "AccentLabel"
+
+[node name="inspect" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/inspect"]
+text = "click a sticker"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/inspect"]
+text = "inspect it up close"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="peel" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/peel"]
+text = "drag a sticker"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/peel"]
+text = "peel, move, and restick"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="rotate" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/rotate"]
+text = "drag in inspection"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/rotate"]
+text = "rotate freely · right drag to roll"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="zoom" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/zoom"]
+text = "mouse wheel"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/zoom"]
+text = "zoom in inspection"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="reset" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/reset"]
+text = "r / q / e"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/reset"]
+text = "reset view / roll left / roll right"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="nav" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/nav"]
+text = "tab / arrows / a"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/nav"]
+text = "navigate menus / confirm"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="pause" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/pause"]
+text = "esc / start / b"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/pause"]
+text = "pause, go back, or close inspection"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="pointer_note" type="Label" parent="scroll/content"]
+text = "sticker placement and peeling use the mouse."
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+
+[node name="back_button" type="Button" parent="scroll/content"]
+text = "back"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+size_flags_horizontal = 0
+theme_type_variation = "QuietButton"
+icon = ExtResource("3")
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true

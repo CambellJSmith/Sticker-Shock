@@ -1,0 +1,130 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/book_hud.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/left.svg" id="3"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/right.svg" id="4"]
+
+
+[node name="book_hud" type="Control"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+mouse_filter = 2
+
+[node name="footer" type="PanelContainer" parent="."]
+anchor_top = 1.0
+anchor_bottom = 1.0
+anchor_right = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+offset_left = 160
+offset_top = -84
+theme_type_variation = "ChromePanel"
+unique_name_in_owner = true
+
+[node name="content" type="HBoxContainer" parent="footer"]
+theme_override_constants/separation = 12
+
+[node name="labels" type="VBoxContainer" parent="footer/content"]
+theme_override_constants/separation = 4
+size_flags_horizontal = 3
+
+[node name="status" type="Label" parent="footer/content/labels"]
+text = "click to inspect · drag to peel"
+mouse_filter = 2
+unique_name_in_owner = true
+
+[node name="hint" type="Label" parent="footer/content/labels"]
+text = "make this spread your own"
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+theme_override_font_sizes/font_size = 12
+unique_name_in_owner = true
+
+[node name="cancel_button" type="Button" parent="footer/content"]
+text = "cancel placement"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+visible = false
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="previous_button" type="Button" parent="footer/content"]
+text = ""
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+tooltip_text = "previous spread"
+theme_type_variation = "QuietButton"
+icon = ExtResource("3")
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="pages" type="Label" parent="footer/content"]
+text = "01 — 02"
+mouse_filter = 2
+custom_minimum_size = Vector2(100, 0)
+horizontal_alignment = 1
+unique_name_in_owner = true
+
+[node name="next_button" type="Button" parent="footer/content"]
+text = ""
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+tooltip_text = "next spread"
+theme_type_variation = "QuietButton"
+icon = ExtResource("4")
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="empty" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 160
+offset_top = 64
+offset_bottom = -84
+mouse_filter = 2
+unique_name_in_owner = true
+
+[node name="panel" type="PanelContainer" parent="empty"]
+mouse_filter = 2
+custom_minimum_size = Vector2(340, 0)
+
+[node name="content" type="VBoxContainer" parent="empty/panel"]
+theme_override_constants/separation = 12
+mouse_filter = 2
+
+[node name="eyebrow" type="Label" parent="empty/panel/content"]
+text = "a blank page. a fresh start."
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "AccentLabel"
+
+[node name="title" type="Label" parent="empty/panel/content"]
+text = "make your first mark"
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "HeadingLabel"
+
+[node name="detail" type="Label" parent="empty/panel/content"]
+text = "open a pack and find something you love."
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "MutedLabel"
+
+[node name="open_packs" type="Button" parent="empty/panel/content"]
+text = "find your first stickers"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+theme_type_variation = "PrimaryButton"
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true

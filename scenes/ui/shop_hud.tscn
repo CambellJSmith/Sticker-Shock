@@ -1,0 +1,182 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/shop_hud.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ui/pack.svg" id="2"]
+[ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="3"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift.svg" id="4"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="5"]
+
+
+[node name="shop_hud" type="Control"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+mouse_filter = 2
+
+[node name="area" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 160
+offset_top = 64
+offset_bottom = -84
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_bottom = 28
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="area"]
+theme_override_constants/separation = 12
+mouse_filter = 2
+
+[node name="heading" type="Label" parent="area/content"]
+text = "a little surprise for your book"
+mouse_filter = 2
+theme_type_variation = "HeadingLabel"
+unique_name_in_owner = true
+
+[node name="subtitle" type="Label" parent="area/content"]
+text = "five random stickers in every pack. duplicates are part of the fun."
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+unique_name_in_owner = true
+
+[node name="offer_center" type="CenterContainer" parent="area/content"]
+size_flags_vertical = 3
+mouse_filter = 2
+unique_name_in_owner = true
+
+[node name="offers" type="HBoxContainer" parent="area/content/offer_center"]
+theme_override_constants/separation = 20
+mouse_filter = 2
+
+[node name="standard" type="PanelContainer" parent="area/content/offer_center/offers"]
+custom_minimum_size = Vector2(320, 0)
+
+[node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/standard"]
+theme_override_constants/separation = 8
+
+[node name="pack" type="TextureRect" parent="area/content/offer_center/offers/standard/content"]
+texture = ExtResource("2")
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+custom_minimum_size = Vector2(0, 170)
+
+[node name="title" type="Label" parent="area/content/offer_center/offers/standard/content"]
+text = "sticker pack"
+mouse_filter = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 24
+
+[node name="description" type="Label" parent="area/content/offer_center/offers/standard/content"]
+text = "five stickers. endless possibilities."
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "MutedLabel"
+
+[node name="standard_detail" type="Label" parent="area/content/offer_center/offers/standard/content"]
+text = ""
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "AccentLabel"
+unique_name_in_owner = true
+
+[node name="buy_button" type="Button" parent="area/content/offer_center/offers/standard/content"]
+text = "open pack · 100 coins"
+script = ExtResource("3")
+mouse_default_cursor_shape = 2
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="free" type="PanelContainer" parent="area/content/offer_center/offers"]
+custom_minimum_size = Vector2(320, 0)
+
+[node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/free"]
+theme_override_constants/separation = 8
+
+[node name="pack" type="TextureRect" parent="area/content/offer_center/offers/free/content"]
+texture = ExtResource("4")
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+custom_minimum_size = Vector2(0, 170)
+
+[node name="title" type="Label" parent="area/content/offer_center/offers/free/content"]
+text = "on the house"
+mouse_filter = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 24
+
+[node name="description" type="Label" parent="area/content/offer_center/offers/free/content"]
+text = "a free pack, every six hours."
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "MutedLabel"
+
+[node name="free_detail" type="Label" parent="area/content/offer_center/offers/free/content"]
+text = ""
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "AccentLabel"
+unique_name_in_owner = true
+
+[node name="free_button" type="Button" parent="area/content/offer_center/offers/free/content"]
+text = "claim free pack"
+script = ExtResource("3")
+mouse_default_cursor_shape = 2
+theme_type_variation = "PrimaryButton"
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="results" type="Control" parent="area/content"]
+size_flags_vertical = 3
+mouse_filter = 2
+unique_name_in_owner = true
+
+[node name="footer" type="PanelContainer" parent="."]
+anchor_top = 1.0
+anchor_bottom = 1.0
+anchor_right = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+offset_left = 160
+offset_top = -84
+theme_type_variation = "ChromePanel"
+unique_name_in_owner = true
+
+[node name="content" type="HBoxContainer" parent="footer"]
+theme_override_constants/separation = 16
+
+[node name="status" type="Label" parent="footer/content"]
+text = "choose a pack to get started"
+mouse_filter = 2
+size_flags_horizontal = 3
+theme_type_variation = "MutedLabel"
+unique_name_in_owner = true
+
+[node name="book_button" type="Button" parent="footer/content"]
+text = "back to book"
+script = ExtResource("3")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+icon = ExtResource("5")
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="auto_button" type="Button" parent="footer/content"]
+text = "place all in book"
+script = ExtResource("3")
+mouse_default_cursor_shape = 2
+visible = false
+theme_type_variation = "PrimaryButton"
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true

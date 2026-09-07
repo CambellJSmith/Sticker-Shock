@@ -1,26 +1,26 @@
-# realistic_sticker_book
+# Sticker-Shock
 
 Godot 4.7.2 prototype for a physical multi-page sticker book with realistic peeling, a separate 3D sticker shop, random sticker packs, manual placement, alpha-silhouette automatic packing, and a complete game-style navigation shell.
 
 ## game ux
 
-The project now starts at a dedicated main menu rather than dropping directly into a gameplay scene. `scenes/ui/game_ui.tscn` is a persistent screen-space UX shell built from editor-authored Godot `Control` and `Container` nodes.
+Sticker-Shock opens with a dedicated title screen, original vector pack artwork, and a compact charcoal-and-warm-orange interface inspired by Blender. New players can start collecting immediately; returning players continue to their book or finish an unresolved pack.
 
-The interface provides:
+The UI is composed from editor-authored Godot controls and separate screen scenes under `scenes/ui/`. Its shared appearance lives in `assets/ui/game_theme.tres`.
 
-- a full main menu with direct routes to the book, shop, collection, settings, and desktop quit
-- a progression summary showing currency, collection completion, page count, placed stickers, pending pack copies, and the real-world free-pack timer
-- a persistent Blender-inspired dark navigation rail while inside the game
-- a compact top status bar shared by book, shop, collection, and settings
-- a collection browser showing every automatically discovered design and owned duplicate count
-- persisted fullscreen and vsync settings
-- a modal pause menu with resume, book, shop, settings, main menu, and quit actions
-- actual `SceneTree.paused` behavior; physical worlds inherit `PROCESS_MODE_PAUSABLE` while the root coordinator and UX shell use `PROCESS_MODE_ALWAYS`
-- deterministic focus neighbors and explicit focus restoration for keyboard/controller navigation
-- conventional back behavior: escape pauses physical worlds, closes pause, or returns collection/settings to the surface that opened them
-- `Button_Start` support for pause and `Button_A` support for focused confirmation when those project input actions are mapped
+- One compact navigation rail and status bar keep currency, the free-pack timer, and unresolved copies visible without duplicating them across panels.
+- The shop separates purchase offers from the physical reward reveal. It explains affordability and cooldowns, marks newly discovered designs, and provides native keyboard/controller actions for each exact pending copy.
+- The book keeps its full physical cover inside the available viewport, with page navigation and contextual interaction guidance in a bottom toolbar. A new book has a clear first-pack action.
+- The collection caches its cards, adapts its column count to available width, and supports search plus all/collected/missing filters. Collected cards open the same freely rotatable inspector used by physical book stickers. Empty results have a clear recovery action.
+- Settings use native toggles and a scrollable controls reference. Display preferences retain their existing persistence.
+- Pause owns the entire pointer and focus scope. Returning from its settings shortcut restores the paused destination. Closing inspection restores the exact card or control that opened it.
+- Mouse buttons use native press/release behavior, hover feedback, disabled states, and keyboard activation. A small `GameButton` component overrides Godot's `_pressed()` hook to call its owner directly; no signal connections are used.
+- Escape/back closes inspection, returns from settings or collection, cancels a pending manual placement, or toggles pause. Start explicitly pauses; A confirms a focused action. Placement and peeling remain mouse interactions.
+- Hidden worlds and the closed inspection viewport stop processing. Progress counts refresh on changes; timer labels update once per second.
 
-Global interface clicks are explicitly excluded from 3D book/shop picking. An already-active sticker peel still receives its mouse-release event even if the pointer crosses over the navigation rail, preventing stuck drag state.
+The desktop minimum window size is 960 × 640. Anchors, containers, scroll clipping, and camera fitting preserve the usable gameplay area as the window changes size. The native window title is “Sticker-Shock”; the internal project name remains the existing save-directory key, so existing books and currency continue to load.
+
+See [the UI design notes](docs/ui_design.md) for component ownership, input behavior, and verification instructions.
 
 ## world flow
 
@@ -150,19 +150,19 @@ The six-hour free timer uses the local machine's Unix system time so it continue
 
 ## input implementation
 
-No gameplay signals are used. Main-menu routing, persistent navigation, pause actions, settings, shop UI, world transitions, pack-result picking, manual placement, and sticker peeling are routed directly through their owning scripts.
+Native `GameButton` controls handle mouse release, hover, disabled state, Enter, and Space through Godot's GUI input path, then call their owning component directly. `GameUI` handles global back/pause and confines tab/directional navigation to the active page or modal. Collection search retains native text-entry behavior.
 
-Mouse and keyboard work in the standalone project. The global UI also checks the project-specific `Button_Start` and `Button_A` actions when they exist in the InputMap, matching the controller naming convention used by the wider project.
+The project maps `Button_Start`, `Button_A`, `Button_B`, and the four `StickLeft_*` directions. Default UI keyboard/d-pad navigation also works. Analog navigation is debounced to prevent small axis changes from skipping items.
 
-The persistent top-bar placement count is constant-time through `StickerBookState.get_placement_count()` so UI refreshes do not deep-copy the multi-page placement database as a large book grows.
+Physical world picking runs through `_unhandled_input`, after GUI processing. The book separately completes an already-started gesture on release even over the navigation rail. Opening a modal or leaving the book finalizes any active peel before changing input ownership. Cancelled manual placement preserves its exact pending copy.
 
 ## Flat 2D presentation
 
 The complete player-facing presentation is now flat and screen-aligned. The main menu, persistent navigation shell, collection, settings, shop, and book all read as a 2D game interface. The book and shop retain a small amount of internal 3D geometry only where it materially improves sticker simulation.
 
 - Both gameplay cameras use orthographic projection and look exactly perpendicular to their presentation surfaces.
-- A shared `FlatPresentationCamera` component automatically centers the book and shop inside the usable screen area beside the navigation rail and below the top bar.
-- Window resizing preserves the same vertical world scale and recomputes only the safe-area camera offset.
+- A shared `FlatPresentationCamera` component automatically centers the book and shop inside the usable screen area beside the navigation rail, below the top bar, and above the book toolbar.
+- Window resizing fits the complete book on both axes and recomputes the camera offset for the actual usable region.
 - Sticker peeling, turnover, landing bounce, and real shadows still use depth internally, but perspective never changes their apparent size.
 - Shop pack results remain face-on for their entire throw and idle animation. They rotate only around the sticker face normal.
 - The old angled shop wall is hidden because it only existed to support the previous perspective presentation.

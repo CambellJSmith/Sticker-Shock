@@ -1,5 +1,5 @@
-class_name StickerInspection
-extends Control
+class_name StickerInspection # Owns an isolated freely rotatable physical artwork preview.
+extends Control # Keeps inspection input and presentation separate from the saved book.
 
 const MIN_ZOOM: float = 0.45 # Defines the smallest inspection magnification allowed while keeping the sticker readable.
 const MAX_ZOOM: float = 4.0 # Defines the largest inspection magnification allowed for close surface examination.
@@ -40,6 +40,7 @@ func open_inspection(sticker_texture: Texture2D, display_name: String, sticker_s
 	_sticker_mesh.clear_peel() # Ensures the inspection copy starts completely flat rather than inheriting any conceptual peel deformation.
 	_sticker_mesh.clear_turnover() # Ensures the mesh-local turnover transform is reset before the inspection pivot controls orientation.
 	_apply_orientation() # Applies the canonical temporary quaternion to the isolated sticker pivot.
+	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS # Renders the isolated physical preview only while its modal is open.
 	visible = true # Gives the inspection modal full presentation and input ownership above the unchanged book.
 	_update_camera_fit() # Fits the full possible rotation envelope inside the current inspection stage.
 	_refresh_zoom_label() # Synchronizes the toolbar readout with the reset zoom.
@@ -47,97 +48,67 @@ func open_inspection(sticker_texture: Texture2D, display_name: String, sticker_s
 
 func close_inspection() -> void: # Closes the modal without writing temporary orientation or zoom into the book save.
 	_rotation_mode = ROTATION_NONE # Releases any active virtual-trackball or roll gesture before hiding the modal.
+	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED # Stops hidden inspection rendering and shader work.
 	visible = false # Returns presentation and input ownership to the unchanged underlying book.
 
 func is_open() -> bool: # Reports whether the inspection modal currently owns the player input surface.
 	return visible # Uses modal visibility as the single authoritative inspection-open state.
 
-func handle_input(event: InputEvent) -> bool: # Routes inspection keyboard, controller, zoom, trackball, and roll input explicitly without signals.
-	if not visible: # Rejects events while inspection is not the active modal surface.
-		return false # Leaves normal game UI and sticker-book input routing untouched.
-	if event is InputEventKey: # Handles modal shortcuts before pointer-specific processing.
-		var key_event: InputEventKey = event as InputEventKey # Narrows the generic event for strongly typed keyboard properties.
-		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_ESCAPE: # Gives escape conventional modal-close behavior.
-			close_inspection() # Returns immediately to the unchanged sticker book.
-			return true # Marks the escape event fully consumed by inspection.
-		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_R: # Provides a direct transform reset shortcut.
-			_reset_transform() # Restores canonical 3D orientation and one-times magnification.
-			return true # Marks the reset shortcut fully consumed by inspection.
-		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_Q: # Provides direct negative roll control for keyboard inspection.
-			_apply_roll(-0.12) # Rotates the sticker around the camera-facing inspection axis without touching book state.
-			return true # Consumes the keyboard roll input inside the modal.
-		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_E: # Provides direct positive roll control for keyboard inspection.
-			_apply_roll(0.12) # Rotates the sticker around the camera-facing inspection axis without touching book state.
-			return true # Consumes the keyboard roll input inside the modal.
-		if key_event.pressed and not key_event.echo and (key_event.keycode == KEY_ENTER or key_event.keycode == KEY_SPACE): # Supports conventional keyboard activation for the focused modal control.
-			_activate_focused_button() # Executes the focused close, zoom, or reset control without signals.
-			return true # Marks focused-control activation fully consumed by inspection.
-		return true # Prevents all remaining keyboard input from leaking into the book while inspection is open.
-	if InputMap.has_action(&"Button_A") and event.is_action_pressed(&"Button_A"): # Supports the project's primary controller action when that InputMap entry exists.
-		_activate_focused_button() # Executes the currently focused modal control through the same no-signal path.
-		return true # Prevents controller confirmation from reaching the underlying book.
-	if event is InputEventMouseButton: # Handles wheel zoom, toolbar actions, free trackball ownership, and explicit roll ownership.
-		var mouse_button: InputEventMouseButton = event as InputEventMouseButton # Narrows the generic event for strongly typed pointer properties.
-		if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_WHEEL_UP: # Detects one positive zoom step anywhere over the modal.
-			_set_zoom(_zoom * ZOOM_STEP) # Magnifies the orthographic inspection view around the stationary sticker center.
-			return true # Consumes the wheel event inside inspection.
-		if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_WHEEL_DOWN: # Detects one negative zoom step anywhere over the modal.
-			_set_zoom(_zoom / ZOOM_STEP) # Reduces orthographic magnification while respecting the configured lower bound.
-			return true # Consumes the wheel event inside inspection.
-		if mouse_button.button_index == MOUSE_BUTTON_LEFT: # Handles primary-button toolbar activation or virtual-trackball rotation.
-			if mouse_button.pressed: # Resolves toolbar clicks before starting a free 3D rotation gesture.
-				if _close_button.get_global_rect().has_point(mouse_button.position): # Detects explicit close-button activation.
-					close_inspection() # Returns to the physical book without changing the saved sticker orientation.
-					return true # Completes close as the sole action for this press.
-				if _zoom_out_button.get_global_rect().has_point(mouse_button.position): # Detects explicit zoom-out activation.
-					_set_zoom(_zoom / ZOOM_STEP) # Applies the same bounded zoom step used by the mouse wheel.
-					return true # Completes zoom-out as the sole action for this press.
-				if _reset_button.get_global_rect().has_point(mouse_button.position): # Detects explicit transform-reset activation.
-					_reset_transform() # Restores canonical three-axis orientation and default magnification.
-					return true # Completes reset as the sole action for this press.
-				if _zoom_in_button.get_global_rect().has_point(mouse_button.position): # Detects explicit zoom-in activation.
-					_set_zoom(_zoom * ZOOM_STEP) # Applies the same bounded zoom step used by the mouse wheel.
-					return true # Completes zoom-in as the sole action for this press.
-				if _stage.get_global_rect().has_point(mouse_button.position): # Starts free arcball rotation only when the press belongs to the inspection canvas.
-					_rotation_mode = ROTATION_ARCBALL # Gives the current primary-button gesture ownership of full three-axis rotation.
-					_last_arcball_vector = _map_to_arcball_world(mouse_button.position) # Captures the initial sphere direction so subsequent motion can construct shortest-arc quaternions.
-				return true # Consumes every primary press while the modal owns the screen.
-			if _rotation_mode == ROTATION_ARCBALL: # Detects the matching primary-button release for an active trackball gesture.
-				_rotation_mode = ROTATION_NONE # Releases virtual-trackball ownership while preserving the temporary final orientation.
-			return true # Consumes the primary release so it cannot affect the sticker book underneath.
-		if mouse_button.button_index == MOUSE_BUTTON_RIGHT: # Handles explicit roll around the current camera-facing axis.
-			if mouse_button.pressed and _stage.get_global_rect().has_point(mouse_button.position): # Starts roll only when the secondary press occurs inside the inspection canvas.
-				_rotation_mode = ROTATION_ROLL # Gives the current secondary-button gesture explicit screen-axis roll ownership.
-				return true # Consumes the roll press inside inspection.
-			if not mouse_button.pressed and _rotation_mode == ROTATION_ROLL: # Detects release of the active explicit-roll gesture.
-				_rotation_mode = ROTATION_NONE # Releases roll ownership while preserving the temporary orientation.
-			return true # Consumes the secondary-button event inside inspection.
-		return true # Keeps all other mouse buttons from leaking through the modal into gameplay.
-	if event is InputEventMouseMotion: # Handles continuous virtual-trackball and explicit-roll rotation.
-		var mouse_motion: InputEventMouseMotion = event as InputEventMouseMotion # Narrows the generic motion event for strongly typed pointer properties.
-		if _rotation_mode == ROTATION_ARCBALL: # Applies free sphere rotation only to a gesture that began inside the stage.
-			var current_arcball_vector: Vector3 = _map_to_arcball_world(mouse_motion.position) # Maps the current pointer position onto the same virtual world-space sphere.
-			var delta_rotation: Quaternion = Quaternion(_last_arcball_vector, current_arcball_vector) # Builds the shortest rotation carrying the previous sphere point to the current one.
-			_orientation = (delta_rotation * _orientation).normalized() # Applies the world-space delta ahead of the existing orientation while preventing quaternion drift.
-			_last_arcball_vector = current_arcball_vector # Advances the sphere anchor for stable incremental motion on the next mouse event.
-			_apply_orientation() # Writes the new pitch-yaw-roll quaternion only to the temporary inspection pivot.
-		elif _rotation_mode == ROTATION_ROLL: # Applies deliberate camera-axis roll while the secondary button remains held.
-			_apply_roll(-mouse_motion.relative.x * ROLL_RADIANS_PER_PIXEL) # Converts horizontal drag into smooth unrestricted roll around the view axis.
-		return true # Keeps every modal mouse-motion event from reaching the physical book.
-	return true # Treats every remaining input type as modal-owned while inspection is visible.
+func configure_actions() -> void: # Binds native toolbar controls without intercepting their pointer events.
+	(_close_button as GameButton).bind_action(close_and_restore_focus) # Closes through the owning shell to restore the selected card.
+	(_zoom_out_button as GameButton).bind_action(_change_zoom.bind(false)) # Uses native activation for zooming out.
+	(_zoom_in_button as GameButton).bind_action(_change_zoom.bind(true)) # Uses native activation for zooming in.
+	(_reset_button as GameButton).bind_action(_reset_transform) # Restores the original artwork orientation and fit.
 
-func _activate_focused_button() -> void: # Executes toolbar focus explicitly so keyboard and controller activation works without signals.
-	if _close_button.has_focus(): # Detects focus on the modal escape control.
-		close_inspection() # Closes inspection without touching the physical book state.
-		return # Completes the focused close action immediately.
-	if _zoom_out_button.has_focus(): # Detects focus on the zoom-out control.
-		_set_zoom(_zoom / ZOOM_STEP) # Applies one bounded negative zoom step.
-		return # Completes the focused zoom-out action immediately.
-	if _zoom_in_button.has_focus(): # Detects focus on the zoom-in control.
-		_set_zoom(_zoom * ZOOM_STEP) # Applies one bounded positive zoom step.
-		return # Completes the focused zoom-in action immediately.
-	if _reset_button.has_focus(): # Detects focus on the inspection reset control.
-		_reset_transform() # Restores canonical temporary orientation and default magnification.
+func close_and_restore_focus() -> void: # Routes toolbar close through the modal owner.
+	(get_parent() as GameUI).close_inspection() # Restores the exact collection card or book action that opened this modal.
+
+func _change_zoom(zoom_in: bool) -> void: # Applies one toolbar zoom step through the clamped camera path.
+	_set_zoom(_zoom * ZOOM_STEP if zoom_in else _zoom / ZOOM_STEP) # Preserves consistent wheel and toolbar zoom increments.
+
+func handle_input(event: InputEvent) -> bool: # Handles only inspection gestures while native buttons retain normal GUI input.
+	if not visible: # Rejects input when the modal is closed.
+		return false # Leaves the current destination in control.
+	if event is InputEventKey and event.is_pressed() and not event.is_echo(): # Handles only deliberate inspection shortcuts.
+		match (event as InputEventKey).keycode: # Keeps text-entry and native button keys outside this handler.
+			KEY_R: # Recognizes the reset-view shortcut.
+				_reset_transform() # Restores the initial orientation and zoom.
+				return true # Consumes only the reset shortcut.
+			KEY_Q: # Recognizes keyboard roll to the left.
+				_apply_roll(-0.12) # Rotates about the current camera-facing axis.
+				return true # Consumes the handled roll shortcut.
+			KEY_E: # Recognizes keyboard roll to the right.
+				_apply_roll(0.12) # Rotates about the current camera-facing axis.
+				return true # Consumes the handled roll shortcut.
+	if event is InputEventMouseButton: # Routes only stage-owned mouse gestures.
+		var mouse: InputEventMouseButton = event as InputEventMouseButton # Narrows the pointer event.
+		var over_stage: bool = _stage.get_global_rect().has_point(mouse.position) # Keeps toolbar input outside the physical gesture surface.
+		if over_stage and mouse.pressed and mouse.button_index == MOUSE_BUTTON_WHEEL_UP: # Handles wheel zoom inside the artwork stage.
+			_set_zoom(_zoom * ZOOM_STEP) # Increases the clamped orthographic zoom.
+			return true # Consumes this stage-owned wheel event.
+		if over_stage and mouse.pressed and mouse.button_index == MOUSE_BUTTON_WHEEL_DOWN: # Handles wheel zoom away from the artwork.
+			_set_zoom(_zoom / ZOOM_STEP) # Decreases the clamped orthographic zoom.
+			return true # Consumes this stage-owned wheel event.
+		if mouse.button_index == MOUSE_BUTTON_LEFT or mouse.button_index == MOUSE_BUTTON_RIGHT: # Restricts rotation to the supported drag buttons.
+			if mouse.pressed and over_stage: # Begins rotation only inside the inspection stage.
+				_rotation_mode = ROTATION_ARCBALL if mouse.button_index == MOUSE_BUTTON_LEFT else ROTATION_ROLL # Selects unrestricted trackball or deliberate roll interaction.
+				_last_arcball_vector = _map_to_arcball_world(mouse.position) # Anchors rotation at the actual pointer position.
+				return true # Reserves this press for the inspection gesture.
+			if not mouse.pressed and _rotation_mode != ROTATION_NONE: # Completes an existing drag even outside the stage.
+				_rotation_mode = ROTATION_NONE # Releases the gesture without touching saved book orientation.
+				return true # Prevents the same release from activating a toolbar button.
+	if event is InputEventMouseMotion and _rotation_mode != ROTATION_NONE: # Updates only an active inspection drag.
+		var motion: InputEventMouseMotion = event as InputEventMouseMotion # Reads the current pointer movement.
+		if _rotation_mode == ROTATION_ARCBALL: # Applies unrestricted rotation across all axes.
+			var current: Vector3 = _map_to_arcball_world(motion.position) # Maps the pointer onto the virtual trackball.
+			_orientation = (Quaternion(_last_arcball_vector, current) * _orientation).normalized() # Accumulates a stable quaternion without Euler locking.
+			_last_arcball_vector = current # Advances the drag anchor for the next movement.
+			_apply_orientation() # Updates only the temporary inspection mesh.
+		else: # Handles deliberate camera-facing roll.
+			_apply_roll(-motion.relative.x * ROLL_RADIANS_PER_PIXEL) # Applies roll proportional to pointer movement.
+		return true # Consumes the active stage gesture.
+	return false # Allows native buttons, focus, and hover feedback to process normally.
+
 
 func _set_zoom(new_zoom: float) -> void: # Applies bounded orthographic magnification without resizing source artwork or book geometry.
 	_zoom = clampf(new_zoom, MIN_ZOOM, MAX_ZOOM) # Keeps close inspection useful without permitting unstable or unusable camera sizes.
@@ -179,6 +150,8 @@ func _map_to_arcball_world(global_pointer: Vector2) -> Vector3: # Maps a screen 
 	return (_camera.global_transform.basis * camera_space_vector).normalized() # Converts the camera-relative sphere direction into world space for stable shortest-arc quaternion composition.
 
 func _refresh_zoom_label() -> void: # Formats the current zoom as a compact multiplier for the inspection toolbar.
+	_zoom_out_button.disabled = _zoom <= MIN_ZOOM # Communicates the lower zoom limit through native disabled state.
+	_zoom_in_button.disabled = _zoom >= MAX_ZOOM # Communicates the upper zoom limit through native disabled state.
 	_zoom_label.text = "%.2fx" % _zoom # Shows precise magnification feedback without cluttering the inspection canvas.
 
 func _update_camera_fit() -> void: # Fits the complete sticker rotation envelope inside the responsive orthographic inspection viewport.

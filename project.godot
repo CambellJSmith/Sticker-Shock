@@ -21,3 +21,36 @@ textures/default_filters/use_nearest_mipmap_filter=false
 
 [physics]
 common/enable_pause_aware_picking=true
+
+[gui]
+theme/custom="res://assets/ui/game_theme.tres"
+
+[input]
+Button_A={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadButton,"button_index":0)]
+}
+Button_B={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadButton,"button_index":1)]
+}
+Button_Start={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadButton,"button_index":6)]
+}
+StickLeft_North={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadMotion,"axis":1,"axis_value":-1.0)]
+}
+StickLeft_South={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadMotion,"axis":1,"axis_value":1.0)]
+}
+StickLeft_West={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadMotion,"axis":0,"axis_value":-1.0)]
+}
+StickLeft_East={
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadMotion,"axis":0,"axis_value":1.0)]
+}
