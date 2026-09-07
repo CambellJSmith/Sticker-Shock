@@ -44,6 +44,17 @@ float fbm(vec2 p) { // Accumulates several frequencies of value noise for richer
 	return total; // Returns the combined broad-to-fine fractal signal.
 } // Completes fractal noise synthesis.
 
+float scratch_line(float phase, float width) { // Builds one softened scratch core from a directional repeating line field.
+	float distance_from_core = abs(sin(phase)); // Measures the distance from the centre of the current scratch line.
+	return 1.0 - smoothstep(0.0, width, distance_from_core); // Converts that distance into a soft-edged scratch mask.
+} // Completes scratch-line shaping.
+
+vec2 rotate_surface_space(vec2 coordinate, float angle) { // Rotates one independent damage layer without changing the supplied artwork UVs.
+	float sine_value = sin(angle); // Caches the damage-layer sine for the coordinate rotation.
+	float cosine_value = cos(angle); // Caches the damage-layer cosine for the coordinate rotation.
+	return vec2(coordinate.x * cosine_value - coordinate.y * sine_value, coordinate.x * sine_value + coordinate.y * cosine_value); // Returns the rotated procedural-detail coordinate.
+} // Completes independent damage-space rotation.
+
 vec2 rotate_detail_uv(vec2 uv, float angle) { // Rotates the procedural surface-detail space around the sticker center without affecting artwork placement.
 	float sine_value = sin(angle); // Caches the detail-space sine once for efficient coordinate rotation.
 	float cosine_value = cos(angle); // Caches the detail-space cosine once for efficient coordinate rotation.
@@ -102,23 +113,50 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 	float broad_smudge_noise = fbm(detail_uv * 5.5 + vec2(1.7, -3.4)); // Creates low-frequency patchiness used as the basis for oily fingerprint-like smudges.
 	float smudge_detail_noise = fbm(detail_uv * 17.0 + vec2(-5.3, 9.1)); // Adds finer breakup so the broad smudge zones do not look airbrushed.
 	float micro_rough_noise = fbm(detail_uv * 75.0 + vec2(14.2, 3.6)); // Supplies very fine grain that breaks up perfectly uniform laminate reflections.
+	float scuff_strength = smoothstep(0.68, 0.9, fbm(detail_uv * 19.0 + vec2(6.4, -7.8))); // Produces tiny matte scuffs and rub marks that help mask the regularity of the scratch layers.
 	float scratch_field = fbm(detail_uv * vec2(24.0, 8.0) + vec2(8.0, -1.0)); // Distorts the thin scratch lines so they drift and vary like real handling wear.
-	float scratch_lines = pow(1.0 - abs(sin(detail_uv.x * 220.0 + scratch_field * 10.0)), 42.0); // Creates sparse hairline scratches from a sharpened directional stripe pattern.
-	float scratch_mask = smoothstep(0.73, 0.9, fbm(detail_uv * 31.0 + vec2(-10.3, 4.7))); // Gates scratches into occasional clusters rather than covering the whole sticker evenly.
-	float scratch_strength = scratch_lines * scratch_mask; // Produces the final sparse scratch signal used by colour and gloss variation.
-	float scuff_strength = smoothstep(0.68, 0.9, fbm(detail_uv * 19.0 + vec2(6.4, -7.8))); // Produces tiny matte scuffs and rub marks from general handling.
+	float fine_scratch_phase = detail_uv.x * 220.0 + scratch_field * 10.0; // Creates the drifting high-frequency phase used by fine hairline damage.
+	float fine_scratch_outer = scratch_line(fine_scratch_phase, 0.07); // Defines the faint outer wear halo around shallow hairline scratches.
+	float fine_scratch_core = scratch_line(fine_scratch_phase, 0.032); // Defines the narrow centre of shallow hairline scratches.
+	float fine_scratch_cluster = smoothstep(0.73, 0.9, fbm(detail_uv * 31.0 + vec2(-10.3, 4.7))); // Gates fine scratches into irregular handling clusters rather than covering the whole sticker evenly.
+	float fine_scratch_depth = mix(0.20, 0.42, noise2(detail_uv * 18.0 + vec2(2.1, -4.7))); // Gives each fine scratch a restrained random depth.
+	float fine_scratch_strength = fine_scratch_core * fine_scratch_cluster * fine_scratch_depth; // Produces the weighted shallow-scratch core.
+	float fine_scratch_edge = max(fine_scratch_outer - fine_scratch_core, 0.0) * fine_scratch_cluster * fine_scratch_depth; // Produces the subtle edge catch around each fine scratch.
+	vec2 medium_detail_uv = rotate_surface_space(detail_uv + vec2(3.7, -5.2), 0.68); // Rotates the medium-wear layer so scratches do not share one direction.
+	float medium_field = noise2(medium_detail_uv * vec2(18.0, 6.0) + vec2(4.6, -3.2)); // Warps medium scratches with inexpensive local variation.
+	float medium_scratch_phase = medium_detail_uv.x * 108.0 + medium_field * 8.0; // Creates the directional phase for wider handling scratches.
+	float medium_scratch_outer = scratch_line(medium_scratch_phase, 0.13); // Defines the broader outer wear around medium scratches.
+	float medium_scratch_core = scratch_line(medium_scratch_phase, 0.06); // Defines the darker centre of medium scratches.
+	float medium_scratch_cluster = smoothstep(0.72, 1.02, scuff_strength + medium_field * 0.22); // Allows medium scratches to appear in broken, rubbed areas only.
+	float medium_scratch_depth = mix(0.38, 0.76, noise2(medium_detail_uv * 8.0 + vec2(-7.1, 5.8))); // Gives medium scratches visibly different depths.
+	float medium_scratch_strength = medium_scratch_core * medium_scratch_cluster * medium_scratch_depth; // Produces the weighted medium-scratch core.
+	float medium_scratch_edge = max(medium_scratch_outer - medium_scratch_core, 0.0) * medium_scratch_cluster * medium_scratch_depth; // Produces the lit shoulder around medium scratches.
+	vec2 deep_detail_uv = rotate_surface_space(detail_uv + vec2(-6.2, 2.7), -0.49); // Rotates the deep-gouge layer into a third direction.
+	float deep_field = noise2(deep_detail_uv * vec2(10.0, 3.0) + vec2(7.1, -9.4)); // Supplies broad variation for the deepest damaged areas.
+	float deep_warp = noise2(deep_detail_uv * vec2(5.0, 13.0) + vec2(-3.1, 11.7)); // Breaks the deep scratch phase into irregular sections.
+	float deep_scratch_phase = deep_detail_uv.x * 55.0 + deep_field * 6.0 + deep_warp * 2.0; // Creates sparse, wider gouge paths.
+	float deep_scratch_outer = scratch_line(deep_scratch_phase, 0.18); // Defines the wide worn shoulder around a deep gouge.
+	float deep_scratch_core = scratch_line(deep_scratch_phase, 0.075); // Defines the concentrated dark channel at the bottom of a deep gouge.
+	float deep_scratch_cluster = smoothstep(0.74, 0.93, deep_field * 0.70 + scuff_strength * 0.30); // Keeps the deepest damage sparse while reusing existing wear fields for lower fragment cost.
+	float deep_scratch_depth = mix(0.62, 1.0, deep_field); // Gives each deep gouge a strong but varied material depth.
+	float deep_scratch_strength = deep_scratch_core * deep_scratch_cluster * deep_scratch_depth; // Produces the weighted deep-gouge core.
+	float deep_scratch_edge = max(deep_scratch_outer - deep_scratch_core, 0.0) * deep_scratch_cluster * deep_scratch_depth; // Produces the exposed edge highlight around deep gouges.
+	float scratch_darkening = fine_scratch_strength * 0.018 + medium_scratch_strength * 0.055 + deep_scratch_strength * 0.12; // Converts material depth into progressively darker scratch channels.
+	float scratch_matte = fine_scratch_strength * 0.07 + medium_scratch_strength * 0.16 + deep_scratch_strength * 0.30; // Converts material depth into progressively rougher damaged laminate.
+	float scratch_specular_loss = fine_scratch_strength * 0.04 + medium_scratch_strength * 0.11 + deep_scratch_strength * 0.24; // Removes more clean gloss from deeper damage.
+	float scratch_edge = fine_scratch_edge * 0.32 + medium_scratch_edge * 0.68 + deep_scratch_edge; // Combines the depth-specific edge catches into one restrained highlight signal.
 	float smudge_strength = smoothstep(0.57, 0.83, broad_smudge_noise) * mix(0.6, 1.0, smudge_detail_noise); // Combines broad and fine noise into soft oily-smudge zones reminiscent of fingerprints.
 	float micro_roughness = (micro_rough_noise - 0.5) * 0.10; // Converts the fine grain signal into a small signed roughness perturbation.
 	if (FRONT_FACING) { // Selects the printed front face when the artwork side is visible.
 		float fingerprint_gloss = smudge_strength * 0.18; // Makes oily-touch areas slightly glossier and smoother than untouched laminate.
-		float scratch_matte = scratch_strength * 0.15; // Makes scratch clusters slightly rougher and more light-scattering than clean laminate.
 		float scuff_matte = scuff_strength * 0.08; // Adds a faint extra roughness lift for generalized rub wear.
 		vec3 front_albedo = artwork.rgb; // Uses the supplied sticker image directly without adding any generated colour or border.
-		front_albedo *= 1.0 - scratch_strength * 0.035; // Very slightly darkens scratched zones so the wear reads without obviously tinting the artwork.
+		front_albedo *= 1.0 - scratch_darkening; // Darkens deeper scratch channels more strongly while preserving the supplied artwork colours.
+		front_albedo += vec3(0.020, 0.017, 0.014) * scratch_edge; // Adds a restrained exposed-laminate catch along scratch shoulders so depth reads under soft light.
 		front_albedo += vec3(0.012) * fingerprint_gloss; // Gives smudged areas a faint cloudy lift that reads like natural skin-oil residue.
 		ALBEDO = clamp(front_albedo, vec3(0.0), vec3(1.0)); // Writes the final subtly weathered colour while guarding against tiny procedural overflow.
 		ROUGHNESS = clamp(mix(0.34, 0.40, peel_region) + micro_roughness + scratch_matte + scuff_matte - fingerprint_gloss, 0.05, 0.98); // Balances laminate, peel response, and realistic touch wear into one physically plausible roughness value.
-		SPECULAR = clamp(0.55 + fingerprint_gloss * 0.35 - scratch_matte * 0.18, 0.02, 0.95); // Lets smudges catch a little more highlight while scratches break highlights slightly.
+		SPECULAR = clamp(0.55 + fingerprint_gloss * 0.35 - scratch_specular_loss, 0.02, 0.95); // Lets smudges catch a little more highlight while deeper scratches break the laminate gloss.
 	} else { // Selects the fibrous adhesive paper wherever the source artwork defines physical sticker material.
 		NORMAL = -NORMAL; // Flips the shading normal so the reverse side receives light correctly.
 		float paper_variation = 0.965 + 0.035 * sin(UV.x * 173.0 + UV.y * 229.0); // Adds a very small procedural paper variation without a second texture.
