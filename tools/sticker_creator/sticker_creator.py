@@ -18,6 +18,18 @@ DEFINITION_SCRIPT_PATH: str = "res://scripts/data/sticker_definition.gd"
 LISTS_SCRIPT_PATH: str = "res://scripts/data/sticker_lists.gd"
 PNG_SIGNATURE: bytes = b"\x89PNG\r\n\x1a\n"
 
+BG: str = "#1d1f21"
+PANEL: str = "#282a2e"
+PANEL_ALT: str = "#303238"
+FIELD: str = "#3a3d43"
+FIELD_HOVER: str = "#45484f"
+TEXT: str = "#d9d9d9"
+TEXT_MUTED: str = "#9b9b9b"
+ACCENT: str = "#4772b3"
+ACCENT_ACTIVE: str = "#5686cc"
+SEPARATOR: str = "#161719"
+SELECT: str = "#4b6e99"
+
 
 def godot_quote(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
@@ -63,118 +75,290 @@ def read_field(resource_text: str, field_name: str) -> str:
 class StickerCreatorApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root: tk.Tk = root
-        self.root.title("Sticker-Shock Sticker Creator")
-        self.root.geometry("1180x760")
-        self.root.minsize(980, 650)
+        self.root.title("Sticker-Shock · Sticker Creator")
+        self.root.geometry("1240x800")
+        self.root.minsize(1040, 680)
+
         self.lists: dict[str, list[str]] = self.load_lists()
         self.listboxes: dict[str, tk.Listbox] = {}
         self.comboboxes: dict[str, ttk.Combobox] = {}
-        self.id_var: tk.StringVar = tk.StringVar()
+
+        self.next_id_var: tk.StringVar = tk.StringVar()
         self.name_var: tk.StringVar = tk.StringVar()
         self.art_var: tk.StringVar = tk.StringVar()
         self.pack_var: tk.StringVar = tk.StringVar()
         self.artist_var: tk.StringVar = tk.StringVar()
         self.rarity_var: tk.StringVar = tk.StringVar()
         self.status_var: tk.StringVar = tk.StringVar(value="ready")
+
         self.description_text: tk.Text
         self.sticker_tree: ttk.Treeview
+
         DEFINITION_ROOT.mkdir(parents=True, exist_ok=True)
         ART_ROOT.mkdir(parents=True, exist_ok=True)
+
         self.configure_style()
         self.build_ui()
         self.refresh_lists_ui()
         self.refresh_existing_stickers()
+        self.refresh_next_id()
 
     def configure_style(self) -> None:
-        self.root.configure(bg="#202124")
+        self.root.configure(bg=BG)
         style: ttk.Style = ttk.Style(self.root)
         try:
             style.theme_use("clam")
         except tk.TclError:
             pass
-        style.configure("TFrame", background="#202124")
-        style.configure("Panel.TFrame", background="#2b2d30")
-        style.configure("TLabel", background="#202124", foreground="#e8eaed")
-        style.configure("Panel.TLabel", background="#2b2d30", foreground="#e8eaed")
-        style.configure("TButton", padding=(8, 5))
-        style.configure("TEntry", fieldbackground="#35373b", foreground="#f1f3f4")
-        style.configure("TCombobox", fieldbackground="#35373b", foreground="#f1f3f4")
-        style.configure("Treeview", background="#2b2d30", foreground="#e8eaed", fieldbackground="#2b2d30", rowheight=25)
-        style.configure("Treeview.Heading", background="#35373b", foreground="#e8eaed")
+
+        style.configure(".", font=("Sans", 10))
+        style.configure("TFrame", background=BG)
+        style.configure("Panel.TFrame", background=PANEL)
+        style.configure("Header.TFrame", background=PANEL_ALT)
+        style.configure("TLabel", background=BG, foreground=TEXT)
+        style.configure("Panel.TLabel", background=PANEL, foreground=TEXT)
+        style.configure("Header.TLabel", background=PANEL_ALT, foreground=TEXT, font=("Sans", 10, "bold"))
+        style.configure("Muted.TLabel", background=PANEL, foreground=TEXT_MUTED)
+
+        style.configure(
+            "TButton",
+            background=FIELD,
+            foreground=TEXT,
+            bordercolor=SEPARATOR,
+            lightcolor=FIELD,
+            darkcolor=FIELD,
+            padding=(9, 4),
+        )
+        style.map(
+            "TButton",
+            background=[("active", FIELD_HOVER), ("pressed", ACCENT)],
+            foreground=[("disabled", TEXT_MUTED)],
+        )
+
+        style.configure(
+            "Accent.TButton",
+            background=ACCENT,
+            foreground="#ffffff",
+            bordercolor=ACCENT,
+            lightcolor=ACCENT,
+            darkcolor=ACCENT,
+            padding=(12, 5),
+            font=("Sans", 10, "bold"),
+        )
+        style.map("Accent.TButton", background=[("active", ACCENT_ACTIVE), ("pressed", ACCENT)])
+
+        style.configure(
+            "TEntry",
+            fieldbackground=FIELD,
+            foreground=TEXT,
+            insertcolor=TEXT,
+            bordercolor=SEPARATOR,
+            lightcolor=FIELD,
+            darkcolor=FIELD,
+            padding=(6, 4),
+        )
+        style.configure(
+            "Readonly.TEntry",
+            fieldbackground=PANEL_ALT,
+            foreground=TEXT_MUTED,
+            bordercolor=SEPARATOR,
+            lightcolor=PANEL_ALT,
+            darkcolor=PANEL_ALT,
+            padding=(6, 4),
+        )
+        style.map("Readonly.TEntry", fieldbackground=[("readonly", PANEL_ALT)])
+
+        style.configure(
+            "TCombobox",
+            fieldbackground=FIELD,
+            background=FIELD,
+            foreground=TEXT,
+            arrowcolor=TEXT_MUTED,
+            bordercolor=SEPARATOR,
+            lightcolor=FIELD,
+            darkcolor=FIELD,
+            padding=(6, 4),
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", FIELD)],
+            background=[("active", FIELD_HOVER), ("readonly", FIELD)],
+            foreground=[("readonly", TEXT)],
+        )
+
+        style.configure(
+            "Treeview",
+            background=PANEL,
+            foreground=TEXT,
+            fieldbackground=PANEL,
+            bordercolor=SEPARATOR,
+            lightcolor=PANEL,
+            darkcolor=PANEL,
+            rowheight=24,
+        )
+        style.map("Treeview", background=[("selected", SELECT)], foreground=[("selected", "#ffffff")])
+        style.configure(
+            "Treeview.Heading",
+            background=PANEL_ALT,
+            foreground=TEXT,
+            bordercolor=SEPARATOR,
+            lightcolor=PANEL_ALT,
+            darkcolor=PANEL_ALT,
+            padding=(6, 4),
+            font=("Sans", 9, "bold"),
+        )
+        style.map("Treeview.Heading", background=[("active", FIELD)])
+
+        style.configure("Vertical.TScrollbar", background=FIELD, troughcolor=PANEL, bordercolor=SEPARATOR, arrowcolor=TEXT_MUTED)
+
+        self.root.option_add("*TCombobox*Listbox.background", FIELD)
+        self.root.option_add("*TCombobox*Listbox.foreground", TEXT)
+        self.root.option_add("*TCombobox*Listbox.selectBackground", SELECT)
+        self.root.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
 
     def build_ui(self) -> None:
-        main: ttk.Frame = ttk.Frame(self.root, padding=12)
+        top_bar: ttk.Frame = ttk.Frame(self.root, style="Header.TFrame", padding=(12, 7))
+        top_bar.pack(fill=tk.X)
+        ttk.Label(top_bar, text="Sticker-Shock", style="Header.TLabel").pack(side=tk.LEFT)
+        ttk.Label(top_bar, text="  /  sticker_creator", style="Header.TLabel").pack(side=tk.LEFT)
+        ttk.Label(top_bar, text="standalone content tool", style="Header.TLabel").pack(side=tk.RIGHT)
+
+        separator: tk.Frame = tk.Frame(self.root, bg=SEPARATOR, height=1)
+        separator.pack(fill=tk.X)
+
+        main: ttk.Frame = ttk.Frame(self.root, padding=8)
         main.pack(fill=tk.BOTH, expand=True)
-        main.columnconfigure(0, minsize=290)
+        main.columnconfigure(0, minsize=280)
         main.columnconfigure(1, weight=1)
         main.rowconfigure(0, weight=1)
 
-        lists_panel: ttk.Frame = ttk.Frame(main, style="Panel.TFrame", padding=12)
-        lists_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        ttk.Label(lists_panel, text="metadata_lists", style="Panel.TLabel").pack(anchor=tk.W, pady=(0, 8))
+        lists_panel: ttk.Frame = ttk.Frame(main, style="Panel.TFrame")
+        lists_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self.build_panel_header(lists_panel, "metadata")
+        lists_content: ttk.Frame = ttk.Frame(lists_panel, style="Panel.TFrame", padding=(10, 8, 10, 10))
+        lists_content.pack(fill=tk.BOTH, expand=True)
         for key in ("packs", "artists", "rarities"):
-            self.build_list_editor(lists_panel, key)
+            self.build_list_editor(lists_content, key)
 
         right_panel: ttk.Frame = ttk.Frame(main)
         right_panel.grid(row=0, column=1, sticky="nsew")
         right_panel.columnconfigure(0, weight=1)
         right_panel.rowconfigure(1, weight=1)
 
-        form_panel: ttk.Frame = ttk.Frame(right_panel, style="Panel.TFrame", padding=12)
-        form_panel.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        form_panel.columnconfigure(1, weight=1)
-        ttk.Label(form_panel, text="new_sticker", style="Panel.TLabel").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        self.add_entry_row(form_panel, 1, "id", self.id_var)
-        self.add_entry_row(form_panel, 2, "name", self.name_var)
-        ttk.Label(form_panel, text="art_png", style="Panel.TLabel").grid(row=3, column=0, sticky="w", padx=(0, 10), pady=4)
-        ttk.Entry(form_panel, textvariable=self.art_var, state="readonly").grid(row=3, column=1, sticky="ew", pady=4)
-        ttk.Button(form_panel, text="browse", command=self.browse_art).grid(row=3, column=2, padx=(8, 0), pady=4)
-        ttk.Label(form_panel, text="description", style="Panel.TLabel").grid(row=4, column=0, sticky="nw", padx=(0, 10), pady=4)
-        self.description_text = tk.Text(form_panel, height=5, bg="#35373b", fg="#f1f3f4", insertbackground="#f1f3f4", wrap=tk.WORD, borderwidth=0, highlightthickness=0)
-        self.description_text.grid(row=4, column=1, columnspan=2, sticky="ew", pady=4)
-        self.add_combo_row(form_panel, 5, "pack", self.pack_var, "packs")
-        self.add_combo_row(form_panel, 6, "artist", self.artist_var, "artists")
-        self.add_combo_row(form_panel, 7, "rarity", self.rarity_var, "rarities")
-        button_bar: ttk.Frame = ttk.Frame(form_panel, style="Panel.TFrame")
-        button_bar.grid(row=8, column=0, columnspan=3, sticky="e", pady=(12, 0))
-        ttk.Button(button_bar, text="clear", command=self.clear_form).pack(side=tk.LEFT, padx=(0, 8))
-        ttk.Button(button_bar, text="create_sticker", command=self.create_sticker).pack(side=tk.LEFT)
+        form_panel: ttk.Frame = ttk.Frame(right_panel, style="Panel.TFrame")
+        form_panel.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        self.build_panel_header(form_panel, "sticker")
+        form_content: ttk.Frame = ttk.Frame(form_panel, style="Panel.TFrame", padding=(12, 10, 12, 12))
+        form_content.pack(fill=tk.X)
+        form_content.columnconfigure(1, weight=1)
 
-        existing_panel: ttk.Frame = ttk.Frame(right_panel, style="Panel.TFrame", padding=12)
+        self.add_readonly_row(form_content, 0, "id", self.next_id_var)
+        self.add_entry_row(form_content, 1, "name", self.name_var)
+
+        ttk.Label(form_content, text="art", style="Panel.TLabel").grid(row=2, column=0, sticky="w", padx=(0, 12), pady=4)
+        ttk.Entry(form_content, textvariable=self.art_var, state="readonly", style="Readonly.TEntry").grid(row=2, column=1, sticky="ew", pady=4)
+        ttk.Button(form_content, text="open…", command=self.browse_art).grid(row=2, column=2, padx=(8, 0), pady=4)
+
+        ttk.Label(form_content, text="description", style="Panel.TLabel").grid(row=3, column=0, sticky="nw", padx=(0, 12), pady=4)
+        self.description_text = tk.Text(
+            form_content,
+            height=5,
+            bg=FIELD,
+            fg=TEXT,
+            insertbackground=TEXT,
+            selectbackground=SELECT,
+            selectforeground="#ffffff",
+            wrap=tk.WORD,
+            relief=tk.FLAT,
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground=SEPARATOR,
+            highlightcolor=ACCENT,
+            padx=7,
+            pady=5,
+        )
+        self.description_text.grid(row=3, column=1, columnspan=2, sticky="ew", pady=4)
+
+        self.add_combo_row(form_content, 4, "pack", self.pack_var, "packs")
+        self.add_combo_row(form_content, 5, "artist", self.artist_var, "artists")
+        self.add_combo_row(form_content, 6, "rarity", self.rarity_var, "rarities")
+
+        button_bar: ttk.Frame = ttk.Frame(form_content, style="Panel.TFrame")
+        button_bar.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+        ttk.Label(button_bar, text="id is assigned automatically", style="Muted.TLabel").pack(side=tk.LEFT)
+        ttk.Button(button_bar, text="clear", command=self.clear_form).pack(side=tk.RIGHT, padx=(8, 0))
+        ttk.Button(button_bar, text="create sticker", style="Accent.TButton", command=self.create_sticker).pack(side=tk.RIGHT)
+
+        existing_panel: ttk.Frame = ttk.Frame(right_panel, style="Panel.TFrame")
         existing_panel.grid(row=1, column=0, sticky="nsew")
-        existing_panel.columnconfigure(0, weight=1)
-        existing_panel.rowconfigure(1, weight=1)
-        ttk.Label(existing_panel, text="existing_stickers", style="Panel.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 8))
+        self.build_panel_header(existing_panel, "existing_stickers")
+        existing_content: ttk.Frame = ttk.Frame(existing_panel, style="Panel.TFrame", padding=(8, 6, 8, 8))
+        existing_content.pack(fill=tk.BOTH, expand=True)
+        existing_content.columnconfigure(0, weight=1)
+        existing_content.rowconfigure(0, weight=1)
+
         columns: tuple[str, ...] = ("id", "name", "pack", "artist", "rarity")
-        self.sticker_tree = ttk.Treeview(existing_panel, columns=columns, show="headings")
+        self.sticker_tree = ttk.Treeview(existing_content, columns=columns, show="headings", selectmode="browse")
+        widths: dict[str, int] = {"id": 72, "name": 220, "pack": 140, "artist": 160, "rarity": 120}
         for column in columns:
             self.sticker_tree.heading(column, text=column)
-            self.sticker_tree.column(column, width=110, anchor=tk.W)
-        self.sticker_tree.column("id", width=70, stretch=False)
-        self.sticker_tree.grid(row=1, column=0, sticky="nsew")
-        scrollbar: ttk.Scrollbar = ttk.Scrollbar(existing_panel, orient=tk.VERTICAL, command=self.sticker_tree.yview)
-        scrollbar.grid(row=1, column=1, sticky="ns")
+            self.sticker_tree.column(column, width=widths[column], anchor=tk.W, stretch=column != "id")
+        self.sticker_tree.grid(row=0, column=0, sticky="nsew")
+
+        scrollbar: ttk.Scrollbar = ttk.Scrollbar(existing_content, orient=tk.VERTICAL, command=self.sticker_tree.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
         self.sticker_tree.configure(yscrollcommand=scrollbar.set)
-        ttk.Label(self.root, textvariable=self.status_var, anchor=tk.W, padding=(12, 5)).pack(fill=tk.X)
+
+        status_separator: tk.Frame = tk.Frame(self.root, bg=SEPARATOR, height=1)
+        status_separator.pack(fill=tk.X)
+        status_bar: ttk.Frame = ttk.Frame(self.root, style="Header.TFrame", padding=(10, 4))
+        status_bar.pack(fill=tk.X)
+        ttk.Label(status_bar, textvariable=self.status_var, style="Header.TLabel").pack(side=tk.LEFT)
+        ttk.Label(status_bar, text="data/stickers  ·  assets/stickers/art", style="Header.TLabel").pack(side=tk.RIGHT)
+
+    def build_panel_header(self, parent: ttk.Frame, title: str) -> None:
+        header: ttk.Frame = ttk.Frame(parent, style="Header.TFrame", padding=(9, 5))
+        header.pack(fill=tk.X)
+        ttk.Label(header, text="▾", style="Header.TLabel").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(header, text=title, style="Header.TLabel").pack(side=tk.LEFT)
 
     def build_list_editor(self, parent: ttk.Frame, key: str) -> None:
         section: ttk.Frame = ttk.Frame(parent, style="Panel.TFrame")
-        section.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        ttk.Label(section, text=key, style="Panel.TLabel").pack(anchor=tk.W)
-        listbox: tk.Listbox = tk.Listbox(section, height=5, bg="#35373b", fg="#f1f3f4", selectbackground="#4d5156", borderwidth=0, highlightthickness=0)
-        listbox.pack(fill=tk.BOTH, expand=True, pady=4)
+        section.pack(fill=tk.BOTH, expand=True, pady=(0, 9))
+        ttk.Label(section, text=key, style="Panel.TLabel").pack(anchor=tk.W, pady=(0, 3))
+
+        listbox: tk.Listbox = tk.Listbox(
+            section,
+            height=5,
+            bg=FIELD,
+            fg=TEXT,
+            selectbackground=SELECT,
+            selectforeground="#ffffff",
+            activestyle="none",
+            relief=tk.FLAT,
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground=SEPARATOR,
+            highlightcolor=ACCENT,
+        )
+        listbox.pack(fill=tk.BOTH, expand=True)
         self.listboxes[key] = listbox
+
         controls: ttk.Frame = ttk.Frame(section, style="Panel.TFrame")
-        controls.pack(fill=tk.X)
-        ttk.Button(controls, text="add", command=lambda selected_key=key: self.add_list_value(selected_key)).pack(side=tk.LEFT)
-        ttk.Button(controls, text="remove", command=lambda selected_key=key: self.remove_list_value(selected_key)).pack(side=tk.LEFT, padx=(6, 0))
+        controls.pack(fill=tk.X, pady=(4, 0))
+        ttk.Button(controls, text="+", width=3, command=lambda selected_key=key: self.add_list_value(selected_key)).pack(side=tk.LEFT)
+        ttk.Button(controls, text="−", width=3, command=lambda selected_key=key: self.remove_list_value(selected_key)).pack(side=tk.LEFT, padx=(4, 0))
 
     def add_entry_row(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar) -> None:
-        ttk.Label(parent, text=label, style="Panel.TLabel").grid(row=row, column=0, sticky="w", padx=(0, 10), pady=4)
+        ttk.Label(parent, text=label, style="Panel.TLabel").grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
         ttk.Entry(parent, textvariable=variable).grid(row=row, column=1, columnspan=2, sticky="ew", pady=4)
 
+    def add_readonly_row(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar) -> None:
+        ttk.Label(parent, text=label, style="Panel.TLabel").grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
+        ttk.Entry(parent, textvariable=variable, state="readonly", style="Readonly.TEntry").grid(row=row, column=1, columnspan=2, sticky="ew", pady=4)
+
     def add_combo_row(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar, list_key: str) -> None:
-        ttk.Label(parent, text=label, style="Panel.TLabel").grid(row=row, column=0, sticky="w", padx=(0, 10), pady=4)
+        ttk.Label(parent, text=label, style="Panel.TLabel").grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
         combobox: ttk.Combobox = ttk.Combobox(parent, textvariable=variable, state="readonly")
         combobox.grid(row=row, column=1, columnspan=2, sticky="ew", pady=4)
         self.comboboxes[list_key] = combobox
@@ -189,7 +373,12 @@ class StickerCreatorApp:
             return defaults
         if not isinstance(parsed, dict):
             return defaults
-        return {key: self.normalize_values([str(value) for value in parsed.get(key, [])]) if isinstance(parsed.get(key, []), list) else [] for key in defaults}
+        return {
+            key: self.normalize_values([str(value) for value in parsed.get(key, [])])
+            if isinstance(parsed.get(key, []), list)
+            else []
+            for key in defaults
+        }
 
     def normalize_values(self, values: list[str]) -> list[str]:
         result: list[str] = []
@@ -229,16 +418,20 @@ class StickerCreatorApp:
             self.rarity_var.set("")
 
     def add_list_value(self, key: str) -> None:
-        value: str | None = simpledialog.askstring("add_value", f"new_{key[:-1]}", parent=self.root)
+        singular: str = {"packs": "pack", "artists": "artist", "rarities": "rarity"}[key]
+        value: str | None = simpledialog.askstring(f"add_{singular}", f"new {singular}", parent=self.root)
         if value is None:
             return
         value = value.strip()
-        if not value or value in self.lists[key]:
+        if not value:
+            return
+        if value in self.lists[key]:
+            messagebox.showinfo("already exists", f"{value} already exists in {key}.", parent=self.root)
             return
         self.lists[key].append(value)
         self.save_lists()
         self.refresh_lists_ui()
-        self.status_var.set(f"added {value} to {key}")
+        self.status_var.set(f"added {singular}: {value}")
 
     def remove_list_value(self, key: str) -> None:
         selection: tuple[int, ...] = self.listboxes[key].curselection()
@@ -247,12 +440,12 @@ class StickerCreatorApp:
         value: str = str(self.listboxes[key].get(selection[0]))
         field_name: str = {"packs": "pack", "artists": "artist", "rarities": "rarity"}[key]
         if self.value_in_use(field_name, value):
-            messagebox.showerror("value_in_use", f"{value} is used by an existing sticker.", parent=self.root)
+            messagebox.showerror("value in use", f"{value} is used by an existing sticker.", parent=self.root)
             return
         self.lists[key].remove(value)
         self.save_lists()
         self.refresh_lists_ui()
-        self.status_var.set(f"removed {value} from {key}")
+        self.status_var.set(f"removed {field_name}: {value}")
 
     def value_in_use(self, field_name: str, value: str) -> bool:
         for resource_path in DEFINITION_ROOT.glob("*.tres"):
@@ -264,25 +457,37 @@ class StickerCreatorApp:
         return False
 
     def browse_art(self) -> None:
-        selected_path: str = filedialog.askopenfilename(parent=self.root, title="select_png", filetypes=[("PNG image", "*.png")])
+        selected_path: str = filedialog.askopenfilename(
+            parent=self.root,
+            title="select sticker art",
+            filetypes=[("PNG image", "*.png")],
+        )
         if selected_path:
             self.art_var.set(selected_path)
 
     def create_sticker(self) -> None:
         error: str = self.validate_form()
         if error:
-            messagebox.showerror("cannot_create_sticker", error, parent=self.root)
+            messagebox.showerror("cannot create sticker", error, parent=self.root)
             return
-        sticker_id: int = int(self.id_var.get().strip())
+
+        sticker_id: int = self.next_sticker_id()
         sticker_name: str = self.name_var.get().strip()
         source_art: Path = Path(self.art_var.get())
         description: str = self.description_text.get("1.0", tk.END).strip()
+
         base_name: str = f"{sticker_id:06d}_{slugify(sticker_name)}"
         art_filename: str = base_name + ".png"
         definition_filename: str = base_name + ".tres"
         destination_art: Path = ART_ROOT / art_filename
         destination_definition: Path = DEFINITION_ROOT / definition_filename
-        shutil.copy2(source_art, destination_art)
+
+        try:
+            shutil.copy2(source_art, destination_art)
+        except OSError as copy_error:
+            messagebox.showerror("copy failed", str(copy_error), parent=self.root)
+            return
+
         definition_text: str = (
             '[gd_resource type="Resource" script_class="StickerDefinition" load_steps=3 format=3]\n\n'
             f'[ext_resource type="Script" path="{DEFINITION_SCRIPT_PATH}" id="1_definition"]\n'
@@ -296,22 +501,20 @@ class StickerCreatorApp:
             f'artist = {godot_quote(self.artist_var.get())}\n'
             f'rarity = {godot_quote(self.rarity_var.get())}\n'
         )
+
         try:
             atomic_write(destination_definition, definition_text)
         except OSError as write_error:
             destination_art.unlink(missing_ok=True)
-            messagebox.showerror("write_failed", str(write_error), parent=self.root)
+            messagebox.showerror("write failed", str(write_error), parent=self.root)
             return
+
         self.refresh_existing_stickers()
         self.clear_form()
-        self.status_var.set(f"created sticker {sticker_id}: {sticker_name}")
+        self.refresh_next_id()
+        self.status_var.set(f"created #{sticker_id:06d} · {sticker_name}")
 
     def validate_form(self) -> str:
-        raw_id: str = self.id_var.get().strip()
-        if not raw_id.isdigit() or int(raw_id) <= 0:
-            return "id must be a positive whole number."
-        if int(raw_id) in self.existing_ids():
-            return f"sticker id {raw_id} already exists."
         if not self.name_var.get().strip():
             return "name is required."
         if not valid_png(Path(self.art_var.get())):
@@ -335,9 +538,17 @@ class StickerCreatorApp:
                 ids.add(int(raw_id))
         return ids
 
+    def next_sticker_id(self) -> int:
+        existing: set[int] = self.existing_ids()
+        return max(existing, default=0) + 1
+
+    def refresh_next_id(self) -> None:
+        self.next_id_var.set(str(self.next_sticker_id()))
+
     def refresh_existing_stickers(self) -> None:
         for item_id in self.sticker_tree.get_children():
             self.sticker_tree.delete(item_id)
+
         rows: list[tuple[int, str, str, str, str]] = []
         for resource_path in DEFINITION_ROOT.glob("*.tres"):
             try:
@@ -346,19 +557,31 @@ class StickerCreatorApp:
                 continue
             raw_id: str = read_field(text, "id")
             if raw_id.isdigit():
-                rows.append((int(raw_id), read_field(text, "name"), read_field(text, "pack"), read_field(text, "artist"), read_field(text, "rarity")))
+                rows.append(
+                    (
+                        int(raw_id),
+                        read_field(text, "name"),
+                        read_field(text, "pack"),
+                        read_field(text, "artist"),
+                        read_field(text, "rarity"),
+                    )
+                )
+
         rows.sort(key=lambda row: row[0])
         for row in rows:
-            self.sticker_tree.insert("", tk.END, values=row)
+            display_row: tuple[str, str, str, str, str] = (f"{row[0]:06d}", row[1], row[2], row[3], row[4])
+            self.sticker_tree.insert("", tk.END, values=display_row)
+
+        self.refresh_next_id()
 
     def clear_form(self) -> None:
-        self.id_var.set("")
         self.name_var.set("")
         self.art_var.set("")
         self.description_text.delete("1.0", tk.END)
         self.pack_var.set("")
         self.artist_var.set("")
         self.rarity_var.set("")
+        self.refresh_next_id()
 
 
 def main() -> None:
