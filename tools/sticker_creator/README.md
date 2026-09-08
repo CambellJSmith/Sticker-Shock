@@ -8,7 +8,13 @@ tools/sticker_creator/run_linux.sh
 
 On Windows, run `tools\sticker_creator\run_windows.bat`.
 
-The launcher installs Pillow automatically if it is not already available. The tool lets you manage packs and artists, assigns sticker IDs automatically, accepts PNG artwork, and creates one Godot `StickerDefinition` resource per sticker.
+The launcher automatically installs the Python dependencies required by the sticker creator and its local vision model. The tool lets you manage packs and artists, assigns sticker IDs automatically, accepts PNG artwork, and creates one Godot `StickerDefinition` resource per sticker.
+
+On first run, the tool automatically downloads and caches `HuggingFaceTB/SmolVLM-256M-Instruct`. Setup runs in the background and the normal sticker-authoring controls remain usable while it completes. After the model has been cached, flavour-text generation runs locally from the selected PNG and does not require an online inference service.
+
+The `generate from art` button beside the description field asks the local vision model to inspect the selected PNG and write short flavour text based primarily on what is visibly depicted. The generated text is placed into the normal description field and remains fully editable before the sticker is created.
+
+Selecting a PNG automatically fills the sticker Name from the image filename without the extension. The Name field remains editable so it can be overwritten manually.
 
 Sticker rarity is fixed and cannot be edited in the tool. The available values are `Common`, `Uncommon`, `Rare`, `Elite`, `Legendary`, and `Unique`.
 
