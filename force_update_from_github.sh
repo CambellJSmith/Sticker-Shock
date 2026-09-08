@@ -2,11 +2,19 @@
 set -Eeuo pipefail
 
 # Destructively replaces this local working copy with the latest version of a remote branch.
+# Sticker-maker generated content is preserved across the update.
 # Usage: ./force_update_from_github.sh [branch]
 # Default branch: main
 
 REMOTE="${REMOTE:-origin}"
 BRANCH="${1:-main}"
+
+STICKER_CONTENT_PATHS=(
+    "assets/stickers/art"
+    "data/stickers"
+    "data/sticker_lists.tres"
+    "tools/sticker_creator/sticker_lists.json"
+)
 
 show_popup() {
     local title="$1"
@@ -53,11 +61,21 @@ if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
 fi
 
 REMOTE_URL="$(git remote get-url "$REMOTE")"
+PRESERVE_ROOT="$(mktemp -d)"
+trap 'rm -rf "$PRESERVE_ROOT"' EXIT
 
 echo "Repository: $REPO_ROOT"
 echo "Remote:     $REMOTE ($REMOTE_URL)"
 echo "Branch:     $BRANCH"
 echo
+echo "Preserving sticker-maker content..."
+for content_path in "${STICKER_CONTENT_PATHS[@]}"; do
+    if [[ -e "$content_path" ]]; then
+        mkdir -p "$PRESERVE_ROOT/$(dirname "$content_path")"
+        cp -a "$content_path" "$PRESERVE_ROOT/$content_path"
+    fi
+done
+
 echo "Fetching latest remote state..."
 git fetch "$REMOTE" --prune --tags
 
@@ -69,7 +87,7 @@ fi
 REMOTE_COMMIT="$(git rev-parse "$REMOTE/$BRANCH")"
 echo "Remote commit: $REMOTE_COMMIT"
 
-echo "Removing all untracked and ignored working-tree files..."
+echo "Removing non-sticker untracked and ignored working-tree files..."
 git clean -ffdx
 
 echo "Forcing local branch '$BRANCH' to '$REMOTE/$BRANCH'..."
@@ -86,11 +104,21 @@ if [[ -f .gitmodules ]]; then
     git submodule foreach --recursive 'git reset --hard && git clean -ffdx'
 fi
 
+echo "Restoring sticker-maker content..."
+for content_path in "${STICKER_CONTENT_PATHS[@]}"; do
+    preserved_path="$PRESERVE_ROOT/$content_path"
+    if [[ -e "$preserved_path" ]]; then
+        rm -rf "$content_path"
+        mkdir -p "$(dirname "$content_path")"
+        cp -a "$preserved_path" "$content_path"
+    fi
+done
+
 git branch --set-upstream-to="$REMOTE/$BRANCH" "$BRANCH" >/dev/null 2>&1 || true
 
 echo
 echo "Force update complete."
-echo "Local '$BRANCH' now matches '$REMOTE/$BRANCH' at $REMOTE_COMMIT."
+echo "Local '$BRANCH' now matches '$REMOTE/$BRANCH' at $REMOTE_COMMIT, with local sticker-maker content preserved."
 git status --short --branch
 
-show_popup "Sticker-Shock updater" "Update complete.\n\nLocal '$BRANCH' now matches '$REMOTE/$BRANCH'.\n\nCommit: $REMOTE_COMMIT"
+show_popup "Sticker-Shock updater" "Update complete.\n\nLocal '$BRANCH' now matches '$REMOTE/$BRANCH'.\nSticker-maker content was preserved.\n\nCommit: $REMOTE_COMMIT"
