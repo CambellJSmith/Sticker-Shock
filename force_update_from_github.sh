@@ -1,16 +1,46 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Destructively replace this local working copy with the latest version of a remote branch.
+# Destructively replaces this local working copy with the latest version of a remote branch.
 # Usage: ./force_update_from_github.sh [branch]
 # Default branch: main
-# Set FORCE_UPDATE_YES=1 to skip the interactive confirmation.
 
 REMOTE="${REMOTE:-origin}"
 BRANCH="${1:-main}"
 
+show_popup() {
+    local title="$1"
+    local message="$2"
+
+    if command -v zenity >/dev/null 2>&1; then
+        zenity --info --title="$title" --text="$message" >/dev/null 2>&1 || true
+        return
+    fi
+
+    if command -v kdialog >/dev/null 2>&1; then
+        kdialog --title "$title" --msgbox "$message" >/dev/null 2>&1 || true
+        return
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        POPUP_TITLE="$title" POPUP_MESSAGE="$message" python3 - <<'PY' >/dev/null 2>&1 || true
+import os
+import tkinter as tk
+from tkinter import messagebox
+
+root = tk.Tk()
+root.withdraw()
+messagebox.showinfo(os.environ["POPUP_TITLE"], os.environ["POPUP_MESSAGE"])
+root.destroy()
+PY
+        return
+    fi
+
+    printf '%s\n%s\n' "$title" "$message"
+}
+
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "Error: this script must be run from inside a Git repository." >&2
+    show_popup "Sticker-Shock updater" "Update failed: this script must be run from inside a Git repository."
     exit 1
 fi
 
@@ -18,7 +48,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
-    echo "Error: Git remote '$REMOTE' does not exist." >&2
+    show_popup "Sticker-Shock updater" "Update failed: Git remote '$REMOTE' does not exist."
     exit 1
 fi
 
@@ -28,26 +58,11 @@ echo "Repository: $REPO_ROOT"
 echo "Remote:     $REMOTE ($REMOTE_URL)"
 echo "Branch:     $BRANCH"
 echo
-echo "WARNING: this is destructive."
-echo "It will permanently discard ALL local tracked changes, untracked files,"
-echo "ignored files, and directories in the working tree so it exactly matches"
-echo "$REMOTE/$BRANCH. Local commits that are not on the remote will no longer"
-echo "be checked out. The .git directory itself is not deleted."
-echo
-
-if [[ "${FORCE_UPDATE_YES:-0}" != "1" ]]; then
-    read -r -p "Type FORCE to continue: " CONFIRMATION
-    if [[ "$CONFIRMATION" != "FORCE" ]]; then
-        echo "Cancelled."
-        exit 0
-    fi
-fi
-
 echo "Fetching latest remote state..."
 git fetch "$REMOTE" --prune --tags
 
 if ! git show-ref --verify --quiet "refs/remotes/$REMOTE/$BRANCH"; then
-    echo "Error: remote branch '$REMOTE/$BRANCH' does not exist." >&2
+    show_popup "Sticker-Shock updater" "Update failed: remote branch '$REMOTE/$BRANCH' does not exist."
     exit 1
 fi
 
@@ -77,3 +92,5 @@ echo
 echo "Force update complete."
 echo "Local '$BRANCH' now matches '$REMOTE/$BRANCH' at $REMOTE_COMMIT."
 git status --short --branch
+
+show_popup "Sticker-Shock updater" "Update complete.\n\nLocal '$BRANCH' now matches '$REMOTE/$BRANCH'.\n\nCommit: $REMOTE_COMMIT"
