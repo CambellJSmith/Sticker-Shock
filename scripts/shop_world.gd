@@ -11,7 +11,8 @@ const REVEAL_COLLISION_MASK: int = 2 # Restricts shop picking to pack-result sti
 
 var _controller: GameController # Delegates economy mutations and world transitions.
 var _environment_resource: Environment # Preserves the shop environment while its world is inactive.
-var _catalog: StickerCatalog # Supplies original artwork and physical dimensions.
+var _economy: StickerEconomy # Owns purchases, free-pack claims, and persistent Unique code redemption.
+var _catalog: StickerCatalog # Supplies original artwork, authored metadata, and physical dimensions.
 var _book_state: StickerBookState # Supplies persisted unresolved copies.
 var _active: bool = false # Guards physical input during inactive destinations.
 var _reveal_nodes: Array[PackRevealSticker] = [] # Tracks the current physical result sheets.
@@ -19,9 +20,10 @@ var _reveal_nodes: Array[PackRevealSticker] = [] # Tracks the current physical r
 func configure(controller: GameController, economy: StickerEconomy, catalog: StickerCatalog, book_state: StickerBookState) -> void: # Binds authoritative models and the independent HUD.
 	_controller = controller # Retains transaction and navigation ownership.
 	_environment_resource = _environment_node.environment # Preserves the environment for later activation.
+	_economy = economy # Retains economy ownership for Unique code redemption coordinated by this shop world.
 	_catalog = catalog # Retains the imported artwork catalogue.
 	_book_state = book_state # Retains pending-copy persistence.
-	_hud.configure(controller, economy, catalog, book_state) # Binds native offer and placement actions.
+	_hud.configure(self, controller, economy, catalog, book_state) # Binds native offers, pack selection, code redemption, and placement actions.
 	show_pending(false) # Initializes the current pack presentation.
 
 func set_active(active: bool) -> void: # Transfers camera, rendering, and input ownership between worlds.
@@ -33,6 +35,19 @@ func set_active(active: bool) -> void: # Transfers camera, rendering, and input 
 	process_mode = Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED # Stops hidden reveal animation and HUD polling.
 	if active: # Rebuilds the small pending-pack presentation on actual shop entry.
 		show_pending(false) # Reflects copies consumed by manual placement in the book.
+
+func redeem_unique_code(code: String) -> String: # Redeems one exact case-sensitive Unique sticker code into the normal physical pending-reveal flow.
+	if _book_state.has_pending_stickers(): # Prevents a code reward from overlapping an unresolved paid or free pack.
+		return "" # Rejects redemption until the current physical reward has been placed.
+	var sticker_path: String = _economy.redeem_unique_code(_catalog, code) # Performs the one-time persistent code validation and ownership grant.
+	if sticker_path.is_empty(): # Rejects invalid, wrong-case, non-Unique, or previously redeemed codes.
+		return "" # Leaves the shop presentation and book state unchanged.
+	var unique_reward: PackedStringArray = PackedStringArray([sticker_path]) # Wraps the single Unique sticker in the existing pending-copy representation.
+	if not _book_state.set_pending_pack(unique_reward): # Persists the exact physical copy before exposing the reveal interaction.
+		push_error("unique sticker was granted but its physical pending reveal could not be established") # Reports an invariant failure after the guarded empty-pending check.
+		return "" # Prevents constructing a reveal that is absent from authoritative book state.
+	show_pending(true) # Throws the redeemed Unique sticker into the same physical reveal presentation as pack rewards.
+	return sticker_path # Reports the rewarded identity so the HUD can show successful redemption feedback.
 
 func show_pending(animate_throw: bool) -> void: # Rebuilds the changed pack's physical sheets and accessible choice buttons.
 	_clear_reveal() # Retires physical sheets belonging to the previous pending state.

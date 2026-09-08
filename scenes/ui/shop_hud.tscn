@@ -6,7 +6,6 @@
 [ext_resource type="Texture2D" path="res://assets/ui/gift.svg" id="4"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="5"]
 
-
 [node name="shop_hud" type="Control"]
 layout_mode = 1
 anchors_preset = 15
@@ -44,7 +43,7 @@ theme_type_variation = "HeadingLabel"
 unique_name_in_owner = true
 
 [node name="subtitle" type="Label" parent="area/content"]
-text = "five random stickers in every pack. duplicates are part of the fun."
+text = "choose a pack, claim a random free pack, or redeem a Unique code."
 mouse_filter = 2
 theme_type_variation = "MutedLabel"
 unique_name_in_owner = true
@@ -55,11 +54,11 @@ mouse_filter = 2
 unique_name_in_owner = true
 
 [node name="offers" type="HBoxContainer" parent="area/content/offer_center"]
-theme_override_constants/separation = 20
+theme_override_constants/separation = 16
 mouse_filter = 2
 
 [node name="standard" type="PanelContainer" parent="area/content/offer_center/offers"]
-custom_minimum_size = Vector2(320, 0)
+custom_minimum_size = Vector2(230, 0)
 
 [node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/standard"]
 theme_override_constants/separation = 8
@@ -69,7 +68,7 @@ texture = ExtResource("2")
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
-custom_minimum_size = Vector2(0, 170)
+custom_minimum_size = Vector2(0, 110)
 
 [node name="title" type="Label" parent="area/content/offer_center/offers/standard/content"]
 text = "sticker pack"
@@ -78,10 +77,15 @@ horizontal_alignment = 1
 theme_override_font_sizes/font_size = 24
 
 [node name="description" type="Label" parent="area/content/offer_center/offers/standard/content"]
-text = "five stickers. endless possibilities."
+text = "choose which collection to open."
 mouse_filter = 2
 horizontal_alignment = 1
 theme_type_variation = "MutedLabel"
+
+[node name="pack_selector" type="OptionButton" parent="area/content/offer_center/offers/standard/content"]
+custom_minimum_size = Vector2(0, 40)
+mouse_default_cursor_shape = 2
+unique_name_in_owner = true
 
 [node name="standard_detail" type="Label" parent="area/content/offer_center/offers/standard/content"]
 text = ""
@@ -98,7 +102,7 @@ custom_minimum_size = Vector2(0, 44)
 unique_name_in_owner = true
 
 [node name="free" type="PanelContainer" parent="area/content/offer_center/offers"]
-custom_minimum_size = Vector2(320, 0)
+custom_minimum_size = Vector2(230, 0)
 
 [node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/free"]
 theme_override_constants/separation = 8
@@ -108,7 +112,7 @@ texture = ExtResource("4")
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
-custom_minimum_size = Vector2(0, 170)
+custom_minimum_size = Vector2(0, 110)
 
 [node name="title" type="Label" parent="area/content/offer_center/offers/free/content"]
 text = "on the house"
@@ -117,10 +121,14 @@ horizontal_alignment = 1
 theme_override_font_sizes/font_size = 24
 
 [node name="description" type="Label" parent="area/content/offer_center/offers/free/content"]
-text = "a free pack, every six hours."
+text = "a random pack, every six hours."
 mouse_filter = 2
 horizontal_alignment = 1
 theme_type_variation = "MutedLabel"
+
+[node name="free_spacer" type="Control" parent="area/content/offer_center/offers/free/content"]
+custom_minimum_size = Vector2(0, 40)
+mouse_filter = 2
 
 [node name="free_detail" type="Label" parent="area/content/offer_center/offers/free/content"]
 text = ""
@@ -134,6 +142,48 @@ text = "claim free pack"
 script = ExtResource("3")
 mouse_default_cursor_shape = 2
 theme_type_variation = "PrimaryButton"
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="unique" type="PanelContainer" parent="area/content/offer_center/offers"]
+custom_minimum_size = Vector2(230, 0)
+
+[node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/unique"]
+theme_override_constants/separation = 8
+
+[node name="spacer" type="Control" parent="area/content/offer_center/offers/unique/content"]
+custom_minimum_size = Vector2(0, 110)
+mouse_filter = 2
+
+[node name="title" type="Label" parent="area/content/offer_center/offers/unique/content"]
+text = "Unique code"
+mouse_filter = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 24
+
+[node name="description" type="Label" parent="area/content/offer_center/offers/unique/content"]
+text = "codes are exact and case sensitive."
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "MutedLabel"
+
+[node name="code_input" type="LineEdit" parent="area/content/offer_center/offers/unique/content"]
+placeholder_text = "enter sticker name"
+clear_button_enabled = true
+custom_minimum_size = Vector2(0, 40)
+unique_name_in_owner = true
+
+[node name="code_detail" type="Label" parent="area/content/offer_center/offers/unique/content"]
+text = "one claim per Unique sticker"
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "AccentLabel"
+unique_name_in_owner = true
+
+[node name="redeem_button" type="Button" parent="area/content/offer_center/offers/unique/content"]
+text = "redeem code"
+script = ExtResource("3")
+mouse_default_cursor_shape = 2
 custom_minimum_size = Vector2(0, 44)
 unique_name_in_owner = true
 
