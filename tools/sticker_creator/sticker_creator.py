@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import tkinter as tk
+from pathlib import Path
 
 from sticker_creator_app import StickerCreatorApp
 
@@ -16,6 +17,12 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         if key == "rarities":
             return
         super().build_list_editor(parent, key)
+
+    def browse_art(self) -> None:
+        super().browse_art()
+        selected_art_path: str = self.art_var.get()
+        if selected_art_path:
+            self.name_var.set(Path(selected_art_path).stem)
 
 
 def main() -> None:
