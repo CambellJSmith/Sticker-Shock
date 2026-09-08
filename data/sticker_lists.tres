@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="StickerLists" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/sticker_lists.gd" id="1_lists"]
+
+[resource]
+script = ExtResource("1_lists")
+packs = PackedStringArray([])
+artists = PackedStringArray([])
+rarities = PackedStringArray([])
