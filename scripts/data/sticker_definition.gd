@@ -1,4 +1,3 @@
-@tool
 class_name StickerDefinition
 extends Resource
 
