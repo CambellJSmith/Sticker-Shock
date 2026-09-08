@@ -8,7 +8,20 @@ tools/sticker_creator/run_linux.sh
 
 On Windows, run `tools\sticker_creator\run_windows.bat`.
 
-The launcher installs Pillow automatically if it is not already available. The tool manages the controlled `packs`, `artists`, and `rarities` lists, assigns sticker IDs automatically, accepts PNG artwork, and creates one Godot `StickerDefinition` resource per sticker.
+The launcher installs Pillow automatically if it is not already available. The tool lets you manage packs and artists, assigns sticker IDs automatically, accepts PNG artwork, and creates one Godot `StickerDefinition` resource per sticker.
+
+Sticker rarity is fixed and cannot be edited in the tool. The available values are `Common`, `Uncommon`, `Rare`, `Elite`, `Legendary`, and `Unique`.
+
+Normal random pack pulls use these rarity weights:
+
+- Common: 60%
+- Uncommon: 25%
+- Rare: 10%
+- Elite: 4%
+- Legendary: 1%
+- Unique: excluded from normal random pulls
+
+If a specific pack contains no stickers of one of the weighted rarities, the available rarity weights are automatically re-normalized. `Unique` stickers remain valid authored content but are never selected by the normal random-pack system.
 
 Before artwork is added to the game, it is converted to RGBA and quantized to the best available 256-color palette. Pillow's libimagequant backend is preferred when available, with its RGBA octree quantizer used as the fallback. The processed PNG is the only copy written into the game project.
 
@@ -36,4 +49,4 @@ When pressed, the tool:
 7. squash-merges the pull request;
 8. switches back to `main` and fast-forwards the local checkout.
 
-A list value cannot be removed while an existing generated sticker uses it. Artwork must be a valid PNG file.
+A pack or artist value cannot be removed while an existing generated sticker uses it. Artwork must be a valid PNG file.
