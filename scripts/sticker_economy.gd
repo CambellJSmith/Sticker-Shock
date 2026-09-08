@@ -2,15 +2,17 @@ class_name StickerEconomy
 extends RefCounted
 
 const SAVE_PATH: String = "user://sticker_progress.json" # Stores persistent player progression in Godot's writable per-user data directory.
-const SAVE_VERSION: int = 1 # Identifies the current progression file structure for future migrations.
+const SAVE_VERSION: int = 2 # Identifies the current progression file structure including redeemed Unique sticker IDs.
 const STARTING_CURRENCY: int = 500 # Defines the initial in-game currency granted when no progression save exists.
-const PACK_PRICE: int = 100 # Defines the in-game currency cost of one normal sticker pack.
+const PACK_PRICE: int = 100 # Defines the in-game currency cost shared by every purchasable sticker pack.
 const PACK_SIZE: int = 5 # Defines how many independently drawn stickers every normal or free pack grants.
 const FREE_PACK_COOLDOWN_SECONDS: int = 6 * 60 * 60 # Defines the real-world cooldown applied after claiming a free pack.
 
 var _currency: int = STARTING_CURRENCY # Stores the player's current spendable in-game currency balance.
 var _next_free_pack_unix: int = 0 # Stores the UTC Unix timestamp when the next free pack becomes claimable.
 var _owned_sticker_counts: Dictionary[String, int] = {} # Stores persistent ownership counts keyed by sticker resource path so duplicates remain meaningful.
+var _redeemed_unique_ids: Dictionary[int, bool] = {} # Stores Unique sticker IDs already claimed through their exact case-sensitive codes.
+var _selected_pack_name: String = "" # Stores the authored pack currently selected for the next paid purchase.
 var _random_number_generator: RandomNumberGenerator = RandomNumberGenerator.new() # Owns pack randomness without relying on global random-number state.
 
 func initialize() -> void: # Initializes random generation and loads persistent economy state before the shop becomes interactive.
@@ -21,10 +23,16 @@ func get_currency() -> int: # Exposes the player's current spendable in-game cur
 	return _currency # Returns the protected currency balance without exposing write access.
 
 func get_pack_price() -> int: # Exposes the configured normal-pack purchase price for interface text and affordability checks.
-	return PACK_PRICE # Returns the single economy authority for pack pricing.
+	return PACK_PRICE # Returns the single economy authority shared by every authored pack.
 
 func get_pack_size() -> int: # Exposes the number of stickers granted by every pack.
 	return PACK_SIZE # Returns the single economy authority for pack contents count.
+
+func set_selected_pack_name(pack_name: String, catalog: StickerCatalog) -> void: # Updates the paid-purchase target only when the catalogue confirms the authored pack can generate normal pulls.
+	_selected_pack_name = pack_name if catalog.has_normal_pack(pack_name) else "" # Stores a valid selected pack or clears stale selection when content changes.
+
+func get_selected_pack_name() -> String: # Exposes the current paid-purchase pack selection for shop presentation.
+	return _selected_pack_name # Returns the controlled authored pack name without exposing mutation.
 
 func add_currency(amount: int) -> void: # Adds positive game-earned currency and persists the updated balance for future gameplay rewards.
 	if amount <= 0: # Rejects zero or negative rewards so callers cannot use this method to bypass spending rules.
@@ -32,30 +40,52 @@ func add_currency(amount: int) -> void: # Adds positive game-earned currency and
 	_currency += amount # Applies the earned amount to the persistent balance.
 	_save() # Persists the reward immediately so currency survives closing the game.
 
-func can_buy_pack(catalog: StickerCatalog) -> bool: # Reports whether a normal pack purchase can succeed right now.
-	return not catalog.is_empty() and _currency >= PACK_PRICE # Requires both available sticker content and enough in-game currency.
+func can_buy_pack(catalog: StickerCatalog) -> bool: # Reports whether the currently selected normal pack purchase can succeed right now.
+	return _currency >= PACK_PRICE and catalog.has_normal_pack(_selected_pack_name) # Requires sufficient currency and one valid authored paid-pack selection.
 
-func buy_pack(catalog: StickerCatalog) -> PackedStringArray: # Purchases, grants, and persists one normal five-sticker pack as one atomic economy operation.
-	if not can_buy_pack(catalog): # Rejects purchases that lack funds or pack-eligible sticker content.
+func buy_pack(catalog: StickerCatalog) -> PackedStringArray: # Purchases, grants, and persists one selected normal five-sticker pack as one atomic economy operation.
+	if not can_buy_pack(catalog): # Rejects purchases that lack funds or a valid selected authored pack.
 		return PackedStringArray() # Returns no contents when the purchase cannot be completed.
-	_currency -= PACK_PRICE # Deducts the pack cost before granting contents so the saved transaction remains internally consistent.
-	var pack: PackedStringArray = catalog.create_random_pack(PACK_SIZE, _random_number_generator) # Draws the configured number of independent random stickers from the current catalogue.
+	var pack: PackedStringArray = catalog.create_random_pack(PACK_SIZE, _random_number_generator, _selected_pack_name) # Draws only from the selected authored pack using the configured rarity weights.
+	if pack.size() != PACK_SIZE: # Protects currency from being deducted if malformed content cannot produce a complete pack.
+		return PackedStringArray() # Returns no contents without modifying persistent progression.
+	_currency -= PACK_PRICE # Deducts the common pack cost only after a complete selected-pack draw exists.
 	_grant_pack(pack) # Adds every drawn sticker to persistent ownership counts including duplicate copies.
 	_save() # Persists currency and inventory together after the completed transaction.
-	return pack # Returns the actual pack draw so the interface can reveal the acquired artwork.
+	return pack # Returns the actual selected-pack draw so the interface can reveal the acquired artwork.
 
-func can_claim_free_pack(catalog: StickerCatalog) -> bool: # Reports whether the free real-world cooldown pack can be claimed now.
-	return not catalog.is_empty() and get_free_pack_seconds_remaining() <= 0 # Requires available content and an elapsed saved cooldown timestamp.
+func can_claim_free_pack(catalog: StickerCatalog) -> bool: # Reports whether the random free real-world cooldown pack can be claimed now.
+	return not catalog.get_pack_names().is_empty() and get_free_pack_seconds_remaining() <= 0 # Requires at least one normal authored pack and an elapsed saved cooldown timestamp.
 
-func claim_free_pack(catalog: StickerCatalog) -> PackedStringArray: # Grants one free five-sticker pack and starts the next real-world cooldown.
-	if not can_claim_free_pack(catalog): # Rejects early claims or claims when no pack content exists.
+func claim_free_pack(catalog: StickerCatalog) -> PackedStringArray: # Grants one free five-sticker pack from a randomly selected authored pack and starts the next real-world cooldown.
+	if not can_claim_free_pack(catalog): # Rejects early claims or claims when no normal authored pack content exists.
 		return PackedStringArray() # Returns no contents without modifying the saved cooldown.
+	var pack_names: PackedStringArray = catalog.get_pack_names() # Reads every authored pack that can currently produce normal weighted draws.
+	var random_pack_index: int = _random_number_generator.randi_range(0, pack_names.size() - 1) # Chooses one available authored pack independently for this six-hour reward.
+	var random_pack_name: String = pack_names[random_pack_index] # Resolves the exact authored pack selected for the current free claim.
+	var pack: PackedStringArray = catalog.create_random_pack(PACK_SIZE, _random_number_generator, random_pack_name) # Draws all free-pack stickers from the one randomly selected authored pack.
+	if pack.size() != PACK_SIZE: # Protects the cooldown from starting if malformed content cannot produce a complete free pack.
+		return PackedStringArray() # Leaves progression unchanged when a complete reward cannot be granted.
 	var current_unix_time: int = _get_current_unix_time() # Captures one consistent UTC timestamp for the complete claim transaction.
-	var pack: PackedStringArray = catalog.create_random_pack(PACK_SIZE, _random_number_generator) # Draws the same configured pack size used by purchased packs.
 	_grant_pack(pack) # Adds the free pack contents to persistent ownership counts.
 	_next_free_pack_unix = current_unix_time + FREE_PACK_COOLDOWN_SECONDS # Stores the exact future UTC timestamp when another free pack becomes eligible.
 	_save() # Persists inventory and cooldown together so restarting cannot reset the waiting period.
 	return pack # Returns the claimed contents for the same visual reveal path used by purchased packs.
+
+func redeem_unique_code(catalog: StickerCatalog, code: String) -> String: # Grants one Unique sticker when its exact case-sensitive authored Name is entered for the first time.
+	var sticker_path: String = catalog.get_unique_sticker_path_by_code(code) # Resolves only exact case-sensitive Unique Name matches through the authoritative catalogue.
+	if sticker_path.is_empty(): # Rejects unknown codes without changing ownership or redemption state.
+		return "" # Returns no sticker identity for an invalid code.
+	var sticker_id: int = catalog.get_sticker_id(sticker_path) # Resolves the persistent numerical identity used to prevent repeated claims.
+	if sticker_id <= 0 or _redeemed_unique_ids.has(sticker_id): # Rejects malformed definitions and Unique codes already redeemed on this save.
+		return "" # Returns no reward when the code has already been claimed.
+	_grant_sticker(sticker_path) # Adds one physical copy to the same duplicate-aware ownership inventory used by packs.
+	_redeemed_unique_ids[sticker_id] = true # Permanently records this Unique code claim independently from general ownership counts.
+	_save() # Persists the granted sticker and one-time redemption marker atomically.
+	return sticker_path # Returns the exact rewarded artwork identity for reveal and book-placement flow.
+
+func has_redeemed_unique(sticker_id: int) -> bool: # Reports whether one Unique sticker ID has already been claimed through its code.
+	return sticker_id > 0 and _redeemed_unique_ids.has(sticker_id) # Returns true only for a valid ID recorded in persistent redemption state.
 
 func get_free_pack_seconds_remaining() -> int: # Returns the whole number of real-world seconds remaining before the next free claim.
 	var seconds_remaining: int = _next_free_pack_unix - _get_current_unix_time() # Compares the saved UTC eligibility timestamp against the current system UTC Unix time.
@@ -79,8 +109,11 @@ func get_unique_owned_count() -> int: # Returns how many distinct sticker design
 
 func _grant_pack(pack: PackedStringArray) -> void: # Adds all drawn pack contents to the player's persistent duplicate-aware sticker inventory.
 	for sticker_path: String in pack: # Processes every pack slot independently so duplicate draws increase ownership multiple times.
-		var current_count: int = maxi(int(_owned_sticker_counts.get(sticker_path, 0)), 0) # Reads the existing validated ownership count for the drawn design.
-		_owned_sticker_counts[sticker_path] = current_count + 1 # Grants one additional physical copy of the drawn sticker.
+		_grant_sticker(sticker_path) # Reuses the one-copy grant path for consistent ownership updates.
+
+func _grant_sticker(sticker_path: String) -> void: # Adds exactly one physical copy of a validated sticker identity to persistent ownership.
+	var current_count: int = maxi(int(_owned_sticker_counts.get(sticker_path, 0)), 0) # Reads the existing validated ownership count for the granted design.
+	_owned_sticker_counts[sticker_path] = current_count + 1 # Grants one additional physical copy of the sticker.
 
 func _load_or_create_save() -> void: # Restores progression from disk or establishes first-run defaults when no valid save is available.
 	_reset_to_defaults() # Starts from known safe values so any load failure has deterministic fallback state.
@@ -107,17 +140,28 @@ func _load_or_create_save() -> void: # Restores progression from disk or establi
 			var owned_count: int = maxi(int(owned_dictionary.get(sticker_path, 0)), 0) # Restores each duplicate count while rejecting malformed negatives.
 			if not normalized_path.is_empty() and owned_count > 0: # Keeps only meaningful persistent collection entries.
 				_owned_sticker_counts[normalized_path] = owned_count # Restores the validated owned copies for the sticker design.
+	var saved_redeemed_unique_ids: Variant = save_data.get("redeemed_unique_ids", []) # Retrieves one-time Unique code claims while remaining backward-compatible with older saves.
+	if saved_redeemed_unique_ids is Array: # Accepts redemption state only when the JSON field has the expected array structure.
+		for saved_id: Variant in saved_redeemed_unique_ids: # Visits each persisted numerical Unique sticker identifier once.
+			var sticker_id: int = int(saved_id) # Converts JSON number variants into the strongly typed sticker identity used at runtime.
+			if sticker_id > 0: # Keeps only meaningful positive sticker identifiers.
+				_redeemed_unique_ids[sticker_id] = true # Restores the one-time redemption marker without altering general ownership.
 
 func _save() -> void: # Persists the complete economy state as one small JSON transaction in Godot's user data directory.
 	var save_file: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.WRITE) # Opens the progression file for replacement with the newest authoritative state.
 	if save_file == null: # Detects a filesystem failure before attempting to serialize progression.
 		push_error("could not write sticker progression save") # Reports the persistence failure without interrupting the running simulation.
 		return # Leaves the valid in-memory state available for the current session.
+	var redeemed_ids: Array[int] = [] # Builds a stable serializable list of one-time Unique sticker IDs.
+	for sticker_id: int in _redeemed_unique_ids.keys(): # Copies every redeemed Unique identity out of the internal lookup.
+		redeemed_ids.append(sticker_id) # Adds the positive numerical ID to the persistent array.
+	redeemed_ids.sort() # Stabilizes the save representation for debugging and future migrations.
 	var save_data: Dictionary = { # Collects all persistent economy fields into one versioned document.
 		"version": SAVE_VERSION, # Records the file structure version for future migration logic.
 		"currency": _currency, # Persists the current spendable in-game currency balance.
 		"next_free_pack_unix": _next_free_pack_unix, # Persists the absolute UTC eligibility timestamp rather than a session-relative timer.
 		"owned_stickers": _owned_sticker_counts.duplicate(true), # Persists duplicate-aware sticker ownership without sharing the mutable runtime dictionary reference.
+		"redeemed_unique_ids": redeemed_ids, # Persists one-time Unique code claims independently from inventory counts.
 	} # Completes the small serializable progression object.
 	save_file.store_string(JSON.stringify(save_data, "\t")) # Writes human-readable JSON for straightforward debugging and future migration work.
 
@@ -125,6 +169,8 @@ func _reset_to_defaults() -> void: # Restores safe first-run progression values 
 	_currency = STARTING_CURRENCY # Restores the configured initial in-game balance.
 	_next_free_pack_unix = 0 # Makes the first free pack immediately eligible on a fresh progression state.
 	_owned_sticker_counts.clear() # Removes all previously held inventory entries from the in-memory state.
+	_redeemed_unique_ids.clear() # Removes all one-time Unique code claims from the in-memory state.
+	_selected_pack_name = "" # Clears the transient paid-pack selection so the shop can choose a current authored default.
 
 func _get_current_unix_time() -> int: # Returns the current real-world UTC Unix timestamp used exclusively for cross-session free-pack eligibility.
 	return int(Time.get_unix_time_from_system()) # Converts Godot's sub-second system Unix time to whole seconds for compact persistent cooldown arithmetic.
