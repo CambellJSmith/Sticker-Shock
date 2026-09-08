@@ -6,6 +6,9 @@ config_version=5
 config/name="realistic_sticker_book"
 run/main_scene="res://scenes/main.tscn"
 
+[autoload]
+StickerContentMigration="*res://scripts/sticker_content_migration.gd"
+
 [display]
 window/size/viewport_width=1280
 window/size/viewport_height=800
