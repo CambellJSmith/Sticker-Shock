@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 # Destructively replaces this local working copy with the latest version of a remote branch.
-# Sticker-maker generated content is preserved across the update.
+# Sticker-maker generated content and local authoring settings are preserved across the update.
 # Usage: ./force_update_from_github.sh [branch]
 # Default branch: main
 
@@ -14,6 +14,7 @@ STICKER_CONTENT_PATHS=(
     "data/stickers"
     "data/sticker_lists.tres"
     "tools/sticker_creator/sticker_lists.json"
+    "tools/sticker_creator/flavour_prompt.txt"
 )
 
 show_popup() {
@@ -121,4 +122,4 @@ echo "Force update complete."
 echo "Local '$BRANCH' now matches '$REMOTE/$BRANCH' at $REMOTE_COMMIT, with local sticker-maker content preserved."
 git status --short --branch
 
-show_popup "Sticker-Shock updater" "Update complete.\n\nLocal '$BRANCH' now matches '$REMOTE/$BRANCH'.\nSticker-maker content was preserved.\n\nCommit: $REMOTE_COMMIT"
+show_popup "Sticker-Shock updater" "Update complete.\n\nLocal '$BRANCH' now matches '$REMOTE/$BRANCH'.\nSticker-maker content and AI prompt were preserved.\n\nCommit: $REMOTE_COMMIT"
