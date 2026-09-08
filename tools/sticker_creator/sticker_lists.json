@@ -1,5 +1,12 @@
 {
   "packs": [],
   "artists": [],
-  "rarities": []
+  "rarities": [
+    "Common",
+    "Uncommon",
+    "Rare",
+    "Elite",
+    "Legendary",
+    "Unique"
+  ]
 }

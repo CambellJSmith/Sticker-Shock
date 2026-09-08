@@ -6,4 +6,4 @@
 script = ExtResource("1_lists")
 packs = PackedStringArray([])
 artists = PackedStringArray([])
-rarities = PackedStringArray([])
+rarities = PackedStringArray(["Common", "Uncommon", "Rare", "Elite", "Legendary", "Unique"])

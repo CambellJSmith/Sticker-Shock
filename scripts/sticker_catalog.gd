@@ -3,6 +3,7 @@ extends RefCounted
 
 const STICKER_DEFINITION_ROOT: String = "res://data/stickers" # Stores the project resource folder searched for pack-eligible sticker definition resources.
 const DEFAULT_LONG_EDGE: float = 2.10 # Defines the default physical artwork long edge used for newly won stickers.
+const RARITY_WEIGHTS: Dictionary[String, float] = {"Common": 60.0, "Uncommon": 25.0, "Rare": 10.0, "Elite": 4.0, "Legendary": 1.0} # Stores the normal pack pull weights while intentionally excluding Unique.
 
 var _sticker_paths: Array[String] = [] # Stores every discovered sticker art resource path in deterministic numerical-ID order.
 var _definitions_by_art_path: Dictionary[String, StickerDefinition] = {} # Maps the renderer-compatible artwork path to its complete sticker metadata resource.
@@ -88,7 +89,7 @@ func get_default_size(sticker_path: String) -> Vector2: # Returns an aspect-pres
 	_size_cache[sticker_path] = sticker_size # Caches the calculated physical size for future duplicate pack draws and placement checks.
 	return sticker_size # Returns the final aspect-preserving artwork dimensions used directly as the sticker sheet size.
 
-func create_random_pack(pack_size: int, random_number_generator: RandomNumberGenerator, pack_name: String = "") -> PackedStringArray: # Creates a pack from all stickers or one authored pack group with duplicates allowed.
+func create_random_pack(pack_size: int, random_number_generator: RandomNumberGenerator, pack_name: String = "") -> PackedStringArray: # Creates a rarity-weighted pack while excluding Unique stickers from normal random pulls.
 	var result: PackedStringArray = PackedStringArray() # Stores the generated sticker artwork paths in reveal order.
 	if pack_size <= 0: # Rejects impossible pack sizes before resolving any catalogue collection.
 		return result # Returns an empty pack when no draw can be performed.
@@ -97,12 +98,47 @@ func create_random_pack(pack_size: int, random_number_generator: RandomNumberGen
 		if not _sticker_paths_by_pack.has(pack_name): # Rejects pack names that have no valid sticker definitions.
 			return result # Returns no draw for an unavailable authored pack.
 		source_paths = _sticker_paths_by_pack[pack_name] # Uses only stickers assigned to the requested pack.
-	if source_paths.is_empty(): # Rejects empty global or pack-specific pools safely.
-		return result # Returns an empty pack without touching progression state.
-	for _pack_slot: int in range(pack_size): # Draws one independent sticker for every requested pack position.
-		var random_index: int = random_number_generator.randi_range(0, source_paths.size() - 1) # Selects a uniformly random catalogue entry for the current pack slot.
-		result.append(source_paths[random_index]) # Adds the selected artwork path while intentionally allowing duplicates like a physical sticker pack.
-	return result # Returns the complete ordered pack for inventory granting and visual reveal.
+	var rarity_pools: Dictionary = _build_rarity_pools(source_paths) # Groups eligible normal-pull stickers by their fixed rarity names.
+	if rarity_pools.is_empty(): # Rejects packs containing only Unique or otherwise unsupported rarity values.
+		return result # Returns an empty pack because no normal random pull can be made.
+	for _pack_slot: int in range(pack_size): # Draws one independently weighted sticker for every requested pack position.
+		var rarity_name: String = _roll_available_rarity(rarity_pools, random_number_generator) # Selects a rarity using only weights that have available stickers in this pack.
+		if rarity_name.is_empty(): # Protects against an unexpected empty weighted selection.
+			break # Stops generation rather than adding an invalid sticker path.
+		var rarity_paths: Array[String] = rarity_pools[rarity_name] # Retrieves all stickers in the selected rarity for the requested pack.
+		var random_index: int = random_number_generator.randi_range(0, rarity_paths.size() - 1) # Selects uniformly among stickers sharing the rolled rarity.
+		result.append(rarity_paths[random_index]) # Adds the selected artwork path while intentionally allowing duplicate pulls.
+	return result # Returns the complete ordered rarity-weighted pack for inventory granting and visual reveal.
+
+func _build_rarity_pools(source_paths: Array[String]) -> Dictionary: # Groups only normal-pull rarities and automatically excludes Unique stickers.
+	var pools: Dictionary = {} # Stores one array of eligible artwork paths for each represented weighted rarity.
+	for sticker_path: String in source_paths: # Examines every sticker available to the requested pack once.
+		var definition: StickerDefinition = get_definition(sticker_path) # Resolves the authored rarity metadata for the current sticker.
+		if definition == null or not RARITY_WEIGHTS.has(definition.rarity): # Rejects unknown metadata and rarities without a normal pull weight, including Unique.
+			continue # Advances without adding excluded stickers to any random-pull pool.
+		var rarity_paths: Array[String] = [] # Creates a typed pool when this rarity is encountered for the first time.
+		if pools.has(definition.rarity): # Reuses the existing pool when another sticker shares this rarity.
+			rarity_paths = pools[definition.rarity] # Retrieves the existing typed array for mutation.
+		rarity_paths.append(sticker_path) # Adds the eligible sticker to its rarity pool.
+		pools[definition.rarity] = rarity_paths # Stores the updated typed rarity pool back into the lookup.
+	return pools # Returns only represented, normally pullable rarities for weighted selection.
+
+func _roll_available_rarity(rarity_pools: Dictionary, random_number_generator: RandomNumberGenerator) -> String: # Rolls a rarity while re-normalizing around rarities absent from the current pack.
+	var total_weight: float = 0.0 # Accumulates only weights whose rarity currently contains at least one sticker.
+	for rarity_name: String in RARITY_WEIGHTS.keys(): # Visits each normal rarity in the configured distribution.
+		if rarity_pools.has(rarity_name): # Includes this rarity only when the current pack can actually award it.
+			total_weight += RARITY_WEIGHTS[rarity_name] # Adds its configured chance to the available-weight total.
+	if total_weight <= 0.0: # Rejects an impossible roll when no weighted rarity remains available.
+		return "" # Returns no rarity so the caller can stop safely.
+	var roll: float = random_number_generator.randf_range(0.0, total_weight) # Produces one continuous weighted roll over the available rarity total.
+	var cumulative_weight: float = 0.0 # Tracks the upper boundary of each available rarity interval.
+	for rarity_name: String in RARITY_WEIGHTS.keys(): # Visits rarity intervals in the fixed configured order.
+		if not rarity_pools.has(rarity_name): # Skips rarities unavailable in the current pack without consuming probability mass.
+			continue # Advances so the remaining probabilities are naturally re-normalized.
+		cumulative_weight += RARITY_WEIGHTS[rarity_name] # Extends the current rarity interval by its configured weight.
+		if roll <= cumulative_weight: # Selects the first interval containing the random roll.
+			return rarity_name # Returns the chosen rarity for uniform selection within its sticker pool.
+	return "" # Returns a defensive empty result if floating-point edge behavior somehow misses every interval.
 
 func _scan_definition_directory(directory_path: String) -> void: # Recursively discovers generated StickerDefinition resources while ignoring unrelated data files.
 	var entries: PackedStringArray = ResourceLoader.list_directory(directory_path) # Lists native resources through ResourceLoader so definitions remain addressable after export.
