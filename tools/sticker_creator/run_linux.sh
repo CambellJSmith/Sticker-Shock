@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-if ! python3 -c "from PIL import Image; import torch, transformers, huggingface_hub, accelerate, safetensors" >/dev/null 2>&1; then
-    python3 -m pip install --user -r "$SCRIPT_DIR/requirements.txt"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$SCRIPT_DIR/.venv"
+PYTHON_BIN="$VENV_DIR/bin/python"
+
+if [[ ! -x "$PYTHON_BIN" ]]; then
+    echo "Setting up Sticker Creator local Python environment..."
+    python3 -m venv "$VENV_DIR"
 fi
 
-python3 "$SCRIPT_DIR/sticker_creator.py"
+if ! "$PYTHON_BIN" -c "from PIL import Image; import torch, transformers, huggingface_hub, accelerate, safetensors" >/dev/null 2>&1; then
+    echo "Installing Sticker Creator dependencies into its local environment..."
+    "$PYTHON_BIN" -m pip install --upgrade pip
+    "$PYTHON_BIN" -m pip install -r "$SCRIPT_DIR/requirements.txt"
+fi
+
+exec "$PYTHON_BIN" "$SCRIPT_DIR/sticker_creator.py"
