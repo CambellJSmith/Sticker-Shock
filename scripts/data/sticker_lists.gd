@@ -2,14 +2,14 @@
 class_name StickerLists
 extends Resource
 
-@export var packs: PackedStringArray = PackedStringArray() # Stores the controlled list of valid pack names available to sticker definitions.
-@export var artists: PackedStringArray = PackedStringArray() # Stores the controlled list of valid artist names available to sticker definitions.
-@export var rarities: PackedStringArray = PackedStringArray() # Stores the controlled list of valid rarity names available to sticker definitions.
+@export_storage var packs: PackedStringArray = PackedStringArray() # Stores the controlled list of valid pack names available to sticker definitions.
+@export_storage var artists: PackedStringArray = PackedStringArray() # Stores the controlled list of valid artist names available to sticker definitions.
+@export_storage var rarities: PackedStringArray = PackedStringArray() # Stores the controlled list of valid rarity names available to sticker definitions.
 
-func normalize() -> void: # Removes blank and duplicate entries while keeping each list stable for editor selection.
-	packs = _normalized_copy(packs) # Normalizes pack names before persistence or UI refresh.
-	artists = _normalized_copy(artists) # Normalizes artist names before persistence or UI refresh.
-	rarities = _normalized_copy(rarities) # Normalizes rarity names before persistence or UI refresh.
+func normalize() -> void: # Removes blank and duplicate entries while keeping each list stable for external-tool selection.
+	packs = _normalized_copy(packs) # Normalizes pack names before persistence or runtime use.
+	artists = _normalized_copy(artists) # Normalizes artist names before persistence or runtime use.
+	rarities = _normalized_copy(rarities) # Normalizes rarity names before persistence or runtime use.
 
 func _normalized_copy(source: PackedStringArray) -> PackedStringArray: # Produces one clean deterministic list without mutating caller-owned data during iteration.
 	var result: PackedStringArray = PackedStringArray() # Stores the cleaned ordered values returned to the owning resource.
