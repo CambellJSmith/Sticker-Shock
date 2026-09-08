@@ -58,7 +58,7 @@ theme_override_constants/separation = 16
 mouse_filter = 2
 
 [node name="standard" type="PanelContainer" parent="area/content/offer_center/offers"]
-custom_minimum_size = Vector2(290, 0)
+custom_minimum_size = Vector2(230, 0)
 
 [node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/standard"]
 theme_override_constants/separation = 8
@@ -68,7 +68,7 @@ texture = ExtResource("2")
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
-custom_minimum_size = Vector2(0, 145)
+custom_minimum_size = Vector2(0, 110)
 
 [node name="title" type="Label" parent="area/content/offer_center/offers/standard/content"]
 text = "sticker pack"
@@ -102,7 +102,7 @@ custom_minimum_size = Vector2(0, 44)
 unique_name_in_owner = true
 
 [node name="free" type="PanelContainer" parent="area/content/offer_center/offers"]
-custom_minimum_size = Vector2(290, 0)
+custom_minimum_size = Vector2(230, 0)
 
 [node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/free"]
 theme_override_constants/separation = 8
@@ -112,7 +112,7 @@ texture = ExtResource("4")
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
-custom_minimum_size = Vector2(0, 145)
+custom_minimum_size = Vector2(0, 110)
 
 [node name="title" type="Label" parent="area/content/offer_center/offers/free/content"]
 text = "on the house"
@@ -146,13 +146,13 @@ custom_minimum_size = Vector2(0, 44)
 unique_name_in_owner = true
 
 [node name="unique" type="PanelContainer" parent="area/content/offer_center/offers"]
-custom_minimum_size = Vector2(290, 0)
+custom_minimum_size = Vector2(230, 0)
 
 [node name="content" type="VBoxContainer" parent="area/content/offer_center/offers/unique"]
 theme_override_constants/separation = 8
 
 [node name="spacer" type="Control" parent="area/content/offer_center/offers/unique/content"]
-custom_minimum_size = Vector2(0, 145)
+custom_minimum_size = Vector2(0, 110)
 mouse_filter = 2
 
 [node name="title" type="Label" parent="area/content/offer_center/offers/unique/content"]
