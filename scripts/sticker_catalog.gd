@@ -4,7 +4,7 @@ extends RefCounted
 const STICKER_DEFINITION_ROOT: String = "res://data/stickers" # Stores the project resource folder searched for pack-eligible sticker definition resources.
 const DEFAULT_LONG_EDGE: float = 2.10 # Defines the default physical artwork long edge used for newly won stickers.
 
-var _sticker_paths: PackedStringArray = PackedStringArray() # Stores every discovered sticker art resource path in deterministic numerical-ID order.
+var _sticker_paths: Array[String] = [] # Stores every discovered sticker art resource path in deterministic numerical-ID order.
 var _definitions_by_art_path: Dictionary[String, StickerDefinition] = {} # Maps the renderer-compatible artwork path to its complete sticker metadata resource.
 var _sticker_paths_by_pack: Dictionary = {} # Groups renderer-compatible artwork paths by pack name for pack-specific draws.
 var _seen_ids: Dictionary[int, bool] = {} # Tracks numerical sticker identifiers so malformed duplicate definitions cannot enter the catalogue.
@@ -19,9 +19,8 @@ func rebuild() -> void: # Rebuilds the catalogue from typed sticker resources cr
 	_scan_definition_directory(STICKER_DEFINITION_ROOT) # Recursively discovers StickerDefinition resources through ResourceLoader for editor and exported builds.
 	_sticker_paths.sort_custom(_sort_art_paths_by_id) # Stabilizes catalogue ordering by the numerical IDs stored inside each sticker resource.
 	for pack_name: Variant in _sticker_paths_by_pack.keys(): # Visits every generated pack pool once after definition discovery is complete.
-		var pack_paths: PackedStringArray = _sticker_paths_by_pack[pack_name] as PackedStringArray # Narrows the stored pack collection for deterministic sorting.
+		var pack_paths: Array[String] = _sticker_paths_by_pack[pack_name] # Retrieves the stored pack collection for deterministic sorting.
 		pack_paths.sort_custom(_sort_art_paths_by_id) # Keeps each pack ordered by sticker ID before random selection or future UI use.
-		_sticker_paths_by_pack[pack_name] = pack_paths # Stores the sorted copy back into the pack lookup.
 
 func get_sticker_count() -> int: # Exposes the number of pack-eligible sticker definitions currently available.
 	return _sticker_paths.size() # Returns the current catalogue entry count without exposing the mutable internal array.
@@ -93,11 +92,11 @@ func create_random_pack(pack_size: int, random_number_generator: RandomNumberGen
 	var result: PackedStringArray = PackedStringArray() # Stores the generated sticker artwork paths in reveal order.
 	if pack_size <= 0: # Rejects impossible pack sizes before resolving any catalogue collection.
 		return result # Returns an empty pack when no draw can be performed.
-	var source_paths: PackedStringArray = _sticker_paths # Uses the complete catalogue when no specific pack was requested.
+	var source_paths: Array[String] = _sticker_paths # Uses the complete catalogue when no specific pack was requested.
 	if not pack_name.is_empty(): # Selects a controlled pack group when the caller provides one.
 		if not _sticker_paths_by_pack.has(pack_name): # Rejects pack names that have no valid sticker definitions.
 			return result # Returns no draw for an unavailable authored pack.
-		source_paths = _sticker_paths_by_pack[pack_name] as PackedStringArray # Uses only stickers assigned to the requested pack.
+		source_paths = _sticker_paths_by_pack[pack_name] # Uses only stickers assigned to the requested pack.
 	if source_paths.is_empty(): # Rejects empty global or pack-specific pools safely.
 		return result # Returns an empty pack without touching progression state.
 	for _pack_slot: int in range(pack_size): # Draws one independent sticker for every requested pack position.
@@ -138,9 +137,9 @@ func _register_definition(definition: StickerDefinition, definition_path: String
 	_seen_ids[definition.id] = true # Reserves the numerical ID before adding the sticker to any public catalogue collection.
 	_definitions_by_art_path[art_path] = definition # Stores the complete metadata object behind the existing artwork identity.
 	_sticker_paths.append(art_path) # Adds the renderer-compatible PNG path to the global pack pool.
-	var pack_paths: PackedStringArray = PackedStringArray() # Creates a typed pack pool when this is the first sticker assigned to its pack.
+	var pack_paths: Array[String] = [] # Creates a typed pack pool when this is the first sticker assigned to its pack.
 	if _sticker_paths_by_pack.has(definition.pack): # Reuses the existing authored pack pool when earlier definitions share the same pack.
-		pack_paths = _sticker_paths_by_pack[definition.pack] as PackedStringArray # Narrows the stored collection for mutation.
+		pack_paths = _sticker_paths_by_pack[definition.pack] # Retrieves the existing typed collection for mutation.
 	pack_paths.append(art_path) # Adds this sticker to its controlled authored pack group.
 	_sticker_paths_by_pack[definition.pack] = pack_paths # Stores the updated typed pack collection back into the lookup.
 
