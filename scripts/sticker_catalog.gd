@@ -3,6 +3,7 @@ extends RefCounted
 
 const STICKER_DEFINITION_ROOT: String = "res://data/stickers" # Stores the project resource folder searched for pack-eligible sticker definition resources.
 const DEFAULT_LONG_EDGE: float = 2.10 # Defines the default physical artwork long edge used for newly won stickers.
+const UNIQUE_RARITY: String = "Unique" # Identifies stickers that can only be granted through explicit code redemption or future custom systems.
 const RARITY_WEIGHTS: Dictionary[String, float] = {"Common": 60.0, "Uncommon": 25.0, "Rare": 10.0, "Elite": 4.0, "Legendary": 1.0} # Stores the normal pack pull weights while intentionally excluding Unique.
 
 var _sticker_paths: Array[String] = [] # Stores every discovered sticker art resource path in deterministic numerical-ID order.
@@ -23,10 +24,10 @@ func rebuild() -> void: # Rebuilds the catalogue from typed sticker resources cr
 		var pack_paths: Array[String] = _sticker_paths_by_pack[pack_name] # Retrieves the stored pack collection for deterministic sorting.
 		pack_paths.sort_custom(_sort_art_paths_by_id) # Keeps each pack ordered by sticker ID before random selection or future UI use.
 
-func get_sticker_count() -> int: # Exposes the number of pack-eligible sticker definitions currently available.
+func get_sticker_count() -> int: # Exposes the number of discovered sticker definitions currently available.
 	return _sticker_paths.size() # Returns the current catalogue entry count without exposing the mutable internal array.
 
-func is_empty() -> bool: # Exposes whether packs can currently contain any stickers.
+func is_empty() -> bool: # Exposes whether the project contains any valid sticker definitions.
 	return _sticker_paths.is_empty() # Returns true only when no valid sticker definitions were discovered.
 
 func get_sticker_path(index: int) -> String: # Returns one renderer-compatible sticker artwork path by validated catalogue index.
@@ -63,12 +64,33 @@ func get_rarity_name(sticker_path: String) -> String: # Returns the controlled r
 	var definition: StickerDefinition = get_definition(sticker_path) # Resolves the complete sticker data object.
 	return definition.rarity if definition != null else "" # Returns no rarity for unknown artwork.
 
-func get_pack_names() -> PackedStringArray: # Returns every pack currently represented by at least one valid sticker definition.
-	var result: PackedStringArray = PackedStringArray() # Stores a caller-owned stable list of pack names.
-	for pack_name: Variant in _sticker_paths_by_pack.keys(): # Visits each unique pack group discovered from sticker definitions.
-		result.append(str(pack_name)) # Copies the pack name without exposing the mutable lookup dictionary.
-	result.sort() # Stabilizes pack ordering for future menus and authoring-aware runtime features.
-	return result # Returns the complete generated pack list represented by sticker content.
+func get_pack_names() -> PackedStringArray: # Returns every authored pack that contains at least one normal random-pull sticker.
+	var result: PackedStringArray = PackedStringArray() # Stores a caller-owned stable list of purchasable pack names.
+	for pack_name: Variant in _sticker_paths_by_pack.keys(): # Visits each unique authored pack group discovered from sticker definitions.
+		var normalized_pack_name: String = str(pack_name) # Converts the dictionary key to the controlled pack-name type used by the shop.
+		if has_normal_pack(normalized_pack_name): # Includes only packs that can actually produce a non-Unique random draw.
+			result.append(normalized_pack_name) # Copies the valid purchasable pack name into the caller-owned result.
+	result.sort() # Stabilizes pack ordering for selection controls and deterministic presentation.
+	return result # Returns every currently purchasable authored pack.
+
+func has_normal_pack(pack_name: String) -> bool: # Reports whether one authored pack contains at least one normal weighted-rarity sticker.
+	if pack_name.is_empty() or not _sticker_paths_by_pack.has(pack_name): # Rejects empty or unknown authored pack names before scanning definitions.
+		return false # Reports that the requested pack cannot be purchased or randomly granted.
+	var pack_paths: Array[String] = _sticker_paths_by_pack[pack_name] # Reads only the small sticker collection assigned to the requested authored pack.
+	for sticker_path: String in pack_paths: # Checks each pack member until one normal-pull rarity is found.
+		var definition: StickerDefinition = get_definition(sticker_path) # Resolves the authored rarity metadata behind the renderer-compatible art path.
+		if definition != null and RARITY_WEIGHTS.has(definition.rarity): # Accepts only rarities included in normal pack probability weights.
+			return true # Reports the pack as usable as soon as one normal-pull sticker exists.
+	return false # Rejects packs containing only Unique or unsupported rarity values.
+
+func get_unique_sticker_path_by_code(code: String) -> String: # Resolves an exact case-sensitive Unique redemption code to its sticker artwork identity.
+	if code.is_empty(): # Rejects empty input without scanning the catalogue.
+		return "" # Returns no match for an empty redemption code.
+	for sticker_path: String in _sticker_paths: # Visits every valid authored sticker definition in deterministic ID order.
+		var definition: StickerDefinition = get_definition(sticker_path) # Resolves the complete metadata object for exact code validation.
+		if definition != null and definition.rarity == UNIQUE_RARITY and definition.name == code: # Requires both Unique rarity and an exact case-sensitive authored Name match.
+			return sticker_path # Returns the renderer-compatible identity for the matching Unique sticker.
+	return "" # Returns no match when the code does not exactly equal any Unique sticker Name.
 
 func get_default_size(sticker_path: String) -> Vector2: # Returns an aspect-preserving physical artwork size for rendering, manual placement, and automatic packing.
 	if _size_cache.has(sticker_path): # Reuses the previously calculated dimensions when the same design appears more than once.
@@ -172,7 +194,7 @@ func _register_definition(definition: StickerDefinition, definition_path: String
 		return # Keeps the first valid resource bound to the renderer-compatible identity.
 	_seen_ids[definition.id] = true # Reserves the numerical ID before adding the sticker to any public catalogue collection.
 	_definitions_by_art_path[art_path] = definition # Stores the complete metadata object behind the existing artwork identity.
-	_sticker_paths.append(art_path) # Adds the renderer-compatible PNG path to the global pack pool.
+	_sticker_paths.append(art_path) # Adds the renderer-compatible PNG path to the global catalogue.
 	var pack_paths: Array[String] = [] # Creates a typed pack pool when this is the first sticker assigned to its pack.
 	if _sticker_paths_by_pack.has(definition.pack): # Reuses the existing authored pack pool when earlier definitions share the same pack.
 		pack_paths = _sticker_paths_by_pack[definition.pack] # Retrieves the existing typed collection for mutation.
