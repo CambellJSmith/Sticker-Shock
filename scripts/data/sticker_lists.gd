@@ -1,4 +1,3 @@
-@tool
 class_name StickerLists
 extends Resource
 
@@ -20,4 +19,4 @@ func _normalized_copy(source: PackedStringArray) -> PackedStringArray: # Produce
 			continue # Advances without modifying output for unusable entries.
 		seen[value] = true # Marks the normalized value as already emitted.
 		result.append(value) # Preserves the first occurrence in stable user-defined order.
-	return result # Returns the compact cleaned list for persistence and dropdown population.
+	return result # Returns the compact cleaned list for persistence and runtime use.
