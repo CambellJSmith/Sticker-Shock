@@ -19,3 +19,6 @@ mono_crash.*.json
 # Godot-generated script resource identifiers
 *.uid
 *.import
+
+# Sticker Creator local Python environment
+tools/sticker_creator/.venv/
