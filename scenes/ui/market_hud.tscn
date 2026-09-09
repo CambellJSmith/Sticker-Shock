@@ -1,0 +1,126 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/market_hud.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2"]
+
+[node name="market_hud" type="Control"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+mouse_filter = 2
+
+[node name="area" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 160
+offset_top = 64
+offset_bottom = -78
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_bottom = 20
+mouse_filter = 2
+
+[node name="content" type="VBoxContainer" parent="area"]
+theme_override_constants/separation = 10
+mouse_filter = 2
+
+[node name="heading" type="Label" parent="area/content"]
+text = "collector exchange"
+mouse_filter = 2
+theme_type_variation = "HeadingLabel"
+theme_override_font_sizes/font_size = 28
+
+[node name="subtitle" type="Label" parent="area/content"]
+text = "rarity sets the baseline. demand moves the price. gold specials command an enormous premium."
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+autowrap_mode = 2
+
+[node name="ticker" type="PanelContainer" parent="area/content"]
+theme_type_variation = "ChromePanel"
+
+[node name="content" type="HBoxContainer" parent="area/content/ticker"]
+theme_override_constants/separation = 16
+
+[node name="summary" type="Label" parent="area/content/ticker/content"]
+text = "0 unstuck copies available to sell"
+mouse_filter = 2
+size_flags_horizontal = 3
+unique_name_in_owner = true
+
+[node name="market_clock" type="Label" parent="area/content/ticker/content"]
+text = "next market move in 10:00"
+mouse_filter = 2
+theme_type_variation = "AccentLabel"
+unique_name_in_owner = true
+
+[node name="scroll" type="ScrollContainer" parent="area/content"]
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+unique_name_in_owner = true
+
+[node name="list" type="VBoxContainer" parent="area/content/scroll"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+unique_name_in_owner = true
+
+[node name="empty_state" type="CenterContainer" parent="area/content"]
+size_flags_vertical = 3
+visible = false
+unique_name_in_owner = true
+
+[node name="panel" type="PanelContainer" parent="area/content/empty_state"]
+custom_minimum_size = Vector2(460, 0)
+
+[node name="content" type="VBoxContainer" parent="area/content/empty_state/panel"]
+theme_override_constants/separation = 8
+
+[node name="title" type="Label" parent="area/content/empty_state/panel/content"]
+text = "nothing loose to sell"
+mouse_filter = 2
+horizontal_alignment = 1
+theme_type_variation = "HeadingLabel"
+
+[node name="detail" type="Label" parent="area/content/empty_state/panel/content"]
+text = "stickers already placed in your book stay there. open more packs or keep your collection safe until the market improves."
+mouse_filter = 2
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="footer" type="PanelContainer" parent="."]
+anchor_top = 1.0
+anchor_bottom = 1.0
+anchor_right = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+offset_left = 160
+offset_top = -78
+theme_type_variation = "ChromePanel"
+
+[node name="content" type="HBoxContainer" parent="footer"]
+theme_override_constants/separation = 16
+
+[node name="market_note" type="Label" parent="footer/content"]
+text = "prices update every ten real-world minutes · bullish and bearish runs can persist for hours"
+mouse_filter = 2
+size_flags_horizontal = 3
+theme_type_variation = "MutedLabel"
+autowrap_mode = 2
+
+[node name="back_button" type="Button" parent="footer/content"]
+text = "back to packs"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(150, 44)
+unique_name_in_owner = true
