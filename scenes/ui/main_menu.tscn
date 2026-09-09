@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/arrow.svg" id="2"]
@@ -8,6 +8,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="6"]
 [ext_resource type="Texture2D" path="res://assets/ui/pack.svg" id="7"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift.svg" id="8"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/coin.svg" id="9"]
 
 [node name="main_menu" type="Control"]
 layout_mode = 1
@@ -87,6 +88,16 @@ mouse_default_cursor_shape = 2
 alignment = 0
 theme_type_variation = "QuietButton"
 icon = ExtResource("4")
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="market_button" type="Button" parent="margin/layout/menu"]
+text = "collector market"
+script = ExtResource("3")
+mouse_default_cursor_shape = 2
+alignment = 0
+theme_type_variation = "QuietButton"
+icon = ExtResource("9")
 custom_minimum_size = Vector2(0, 44)
 unique_name_in_owner = true
 
