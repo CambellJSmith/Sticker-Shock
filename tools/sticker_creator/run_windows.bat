@@ -10,7 +10,7 @@ if not exist "%PYTHON_BIN%" (
     if errorlevel 1 exit /b 1
 )
 
-"%PYTHON_BIN%" -c "from PIL import Image; import torch, transformers, huggingface_hub, accelerate, safetensors" >nul 2>&1
+"%PYTHON_BIN%" -c "from PIL import Image" >nul 2>&1
 if errorlevel 1 (
     echo Installing Sticker Creator dependencies into its local environment...
     "%PYTHON_BIN%" -m pip install --upgrade pip
