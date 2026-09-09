@@ -3,9 +3,11 @@ extends StickerInspection
 
 const CONTROLLER_ROTATION_SPEED: float = 2.35 # Converts full right-stick deflection into responsive inspection pitch/yaw radians per second.
 const CONTROLLER_ROLL_SPEED: float = 2.10 # Converts shoulder-button hold into deliberate camera-facing roll radians per second.
+const CONTROLLER_DETAIL_SCROLL_SPEED: float = 520.0 # Converts trigger pressure into readable details-panel scrolling pixels per second.
 
 @onready var _return_to_collection_button: Button = $bottom_bar/return_to_collection as Button # References the explicit action that removes the inspected physical placement from the book.
 @onready var _edition_badge: Label = $top_bar/content/edition_badge as Label # Shows the exact normal or premium finish beside the authored sticker name.
+@onready var _details_scroll: ScrollContainer = $details_panel/margin/scroll as ScrollContainer # Owns creator-authored metadata overflow so long descriptions remain controller-accessible.
 @onready var _market_value: Label = $details_panel/margin/scroll/details/market_value as Label # Shows the current collector-exchange quote for this exact edition.
 @onready var _id_label: Label = $details_panel/margin/scroll/details/id_label as Label # Shows the creator-authored numerical sticker ID.
 @onready var _rarity_label: Label = $details_panel/margin/scroll/details/rarity_label as Label # Shows the creator-authored rarity independently from edition finish.
@@ -27,6 +29,7 @@ func configure_actions() -> void: # Binds the existing inspection controls plus 
 func open_inspection(sticker_texture: Texture2D, display_name: String, sticker_size: Vector2) -> void: # Opens the established physical inspector and immediately presents the correct active-device controls.
 	super.open_inspection(sticker_texture, display_name, sticker_size) # Preserves mesh setup, canonical orientation, camera fit, zoom reset, and deterministic close-button focus.
 	_market_refresh_elapsed = 0.0 # Starts live-value and control-hint polling from a clean interval for this modal session.
+	_details_scroll.scroll_vertical = 0 # Starts every sticker's creator-authored details at the top for predictable controller reading.
 	_last_controller_hint = not _is_controller_mode() # Forces the first hint refresh regardless of the previous inspection's input family.
 	_refresh_control_hint() # Shows either complete gamepad inspection controls or the established pointer/keyboard gestures.
 
@@ -44,7 +47,7 @@ func handle_input(event: InputEvent) -> bool: # Extends established mouse/keyboa
 	if event.is_action_pressed(&"Button_RightStick"): # Gives the right-stick click a quick canonical-view reset without moving UI focus.
 		_reset_transform() # Restores orientation and zoom through the existing inspection reset implementation.
 		return true # Consumes the reset action inside inspection.
-	return false # Leaves A/B/Start, left-stick UI focus, shoulders-as-held-state, and unrelated input to their normal owners.
+	return false # Leaves A/B/Start, left-stick UI focus, shoulders/triggers-as-held-state, and unrelated input to their normal owners.
 
 func set_sticker_details(definition: StickerDefinition, edition_name: String, market_value_provider: Callable) -> void: # Populates every creator-authored property plus exact edition and live exchange value.
 	_market_value_provider = market_value_provider # Retains the exact edition-aware quote lookup while this inspection remains open.
@@ -84,19 +87,22 @@ func close_inspection() -> void: # Clears removal and live-market context whenev
 		_return_to_collection_button.visible = false # Hides the book-only action until another physical placement supplies context.
 	super.close_inspection() # Preserves the established rendering shutdown and modal visibility behavior.
 
-func _process(delta: float) -> void: # Drives continuous controller rotation/roll and keeps the displayed exchange value current while inspection is open.
-	if not visible: # Avoids analog input, hint updates, and quote work while inspection is closed.
+func _process(delta: float) -> void: # Drives continuous controller rotation, roll, detail scrolling, and live exchange-value updates while inspection is open.
+	if not visible: # Avoids analog input, hint updates, scrolling, and quote work while inspection is closed.
 		return # Leaves hidden inspection effectively idle.
 	_refresh_control_hint() # Switches the compact help string only when meaningful input changes the active device family.
-	if _is_controller_mode(): # Applies continuous analog inspection transforms only while the gamepad is the most recently used device.
+	if _is_controller_mode(): # Applies continuous analog inspection controls only while the gamepad is the most recently used device.
 		var look: Vector2 = Input.get_vector(&"StickRight_West", &"StickRight_East", &"StickRight_North", &"StickRight_South") # Reads camera-relative two-axis rotation independently from left-stick UI focus.
 		if look.length_squared() > 0.0001: # Avoids quaternion work while the right stick rests inside its configured deadzone.
 			_apply_controller_rotation(look, delta) # Converts screen-space stick direction into stable world-space pitch and yaw on the inspection pivot.
 		var roll_input: float = Input.get_action_strength(&"Button_RightShoulder") - Input.get_action_strength(&"Button_LeftShoulder") # Treats shoulders as symmetric held roll controls.
 		if absf(roll_input) > 0.001: # Avoids roll quaternion work while neither shoulder is held.
 			_apply_roll(roll_input * CONTROLLER_ROLL_SPEED * delta) # Reuses the established camera-facing roll axis and normalized orientation composition.
+		var scroll_input: float = Input.get_action_strength(&"Trigger_Right") - Input.get_action_strength(&"Trigger_Left") # Treats triggers as symmetric down/up scrolling for long creator-authored metadata.
+		if absf(scroll_input) > 0.001: # Avoids touching ScrollContainer state while both triggers rest.
+			_details_scroll.scroll_vertical += int(round(scroll_input * CONTROLLER_DETAIL_SCROLL_SPEED * delta)) # Lets the native ScrollContainer clamp continuous trigger scrolling to its actual content range.
 	if not _market_value_provider.is_valid(): # Skips quote polling for inspection contexts that do not have an authoritative market value provider.
-		return # Leaves controller transforms fully active even when no market quote exists.
+		return # Leaves controller transforms and details scrolling fully active even when no market quote exists.
 	_market_refresh_elapsed += delta # Accumulates elapsed visible time between lightweight quote checks.
 	if _market_refresh_elapsed < 1.0: # Limits market advancement/value formatting to one check per second.
 		return # Keeps frame-by-frame inspection rendering and analog controls free of economy polling.
@@ -139,6 +145,6 @@ func _refresh_control_hint() -> void: # Presents a complete mapping for the acti
 		return # Leaves the current concise help string stable.
 	_last_controller_hint = controller_mode # Records the newly displayed mapping before mutating the label.
 	if controller_mode: # Shows every non-menu gamepad transform available in the inspection modal.
-		_control_hint.text = "right stick rotate · LB/RB roll · X/Y zoom · R3 reset · B close" # Makes unrestricted inspection fully discoverable without mouse or keyboard.
+		_control_hint.text = "right stick rotate · LB/RB roll · LT/RT details · X/Y zoom · R3 reset · B close" # Makes unrestricted inspection and metadata reading fully discoverable without mouse or keyboard.
 	else: # Preserves the established desktop gesture mapping when mouse/keyboard is active.
 		_control_hint.text = "drag to rotate · right drag to roll · wheel to zoom · r to reset" # Retains concise original pointer/keyboard guidance.
