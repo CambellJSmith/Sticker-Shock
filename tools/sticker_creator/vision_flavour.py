@@ -8,6 +8,7 @@ from PIL import Image
 from huggingface_hub import snapshot_download
 
 MODEL_ID: str = "HuggingFaceTB/SmolVLM-256M-Instruct"
+PROMPT_PATH: Path = Path(__file__).resolve().parent / "flavour_prompt.txt"
 _model_lock: threading.Lock = threading.Lock()
 _pipeline = None
 
@@ -16,14 +17,26 @@ def ensure_model_cached() -> str:
     return snapshot_download(repo_id=MODEL_ID)
 
 
+def load_base_prompt() -> str:
+    if not PROMPT_PATH.is_file():
+        return "Write exactly four fun, charming, professional, child-appropriate sentences of flavour text describing the supplied image."
+    return PROMPT_PATH.read_text(encoding="utf-8").strip()
+
+
+def save_base_prompt(prompt: str) -> None:
+    PROMPT_PATH.write_text(prompt.strip() + "\n", encoding="utf-8")
+
+
 def generate_flavour_text(image_path: Path, sticker_name: str, pack_name: str, rarity: str) -> str:
     generator = _get_pipeline()
+    base_prompt: str = load_base_prompt()
     prompt: str = (
-        "Look carefully at the supplied sticker artwork and write concise collectible flavour text for what is actually depicted. "
-        "Use the visible subject, pose, clothing, objects, expression, and mood as your primary evidence. "
-        "Write one or two polished sentences, 12 to 35 words total. "
+        base_prompt
+        + "\n\nLook carefully at the supplied sticker artwork and base the response on what is actually visible. "
+        "Use the visible subject, pose, clothing, objects, expression, and mood as evidence. "
+        "Write as though the depicted subject genuinely exists. "
         "Do not describe it as an image, artwork, sticker, illustration, or game asset. "
-        "Do not mention rarity, pack names, IDs, probabilities, or game mechanics. "
+        "Do not mention rarity, pack names, IDs, probabilities, artists, or game mechanics. "
         "Do not invent a different proper name. "
         f"The authored sticker name is {sticker_name!r}. "
         f"The authored pack is {pack_name!r} and rarity is {rarity!r}; use those only as subtle tonal context."
@@ -42,7 +55,7 @@ def generate_flavour_text(image_path: Path, sticker_name: str, pack_name: str, r
         outputs = generator(
             text=messages,
             images=[image],
-            max_new_tokens=96,
+            max_new_tokens=180,
             do_sample=False,
             return_full_text=False,
         )

@@ -5,7 +5,7 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 from sticker_creator_app import StickerCreatorApp
-from vision_flavour import ensure_model_cached, generate_flavour_text
+from vision_flavour import ensure_model_cached, generate_flavour_text, load_base_prompt, save_base_prompt
 
 RARITIES: tuple[str, ...] = ("Common", "Uncommon", "Rare", "Elite", "Legendary", "Unique")
 
@@ -20,6 +20,12 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         )
         self.generate_description_button.grid(row=3, column=3, sticky="ns", padx=(8, 0), pady=4)
         self.generate_description_button.state(["disabled"])
+        self.edit_prompt_button: ttk.Button = ttk.Button(
+            self.description_text.master,
+            text="edit ai prompt",
+            command=self.edit_ai_prompt,
+        )
+        self.edit_prompt_button.grid(row=4, column=3, sticky="new", padx=(8, 0), pady=(0, 4))
         self._vision_ready: bool = False
         self._vision_busy: bool = False
         self._start_vision_setup()
@@ -39,6 +45,44 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         selected_art_path: str = self.art_var.get()
         if selected_art_path:
             self.name_var.set(Path(selected_art_path).stem)
+
+    def edit_ai_prompt(self) -> None:
+        prompt_window: tk.Toplevel = tk.Toplevel(self.root)
+        prompt_window.title("Sticker Creator · AI flavour prompt")
+        prompt_window.geometry("720x420")
+        prompt_window.minsize(520, 300)
+        prompt_window.transient(self.root)
+        prompt_window.grab_set()
+        prompt_frame: ttk.Frame = ttk.Frame(prompt_window, padding=12)
+        prompt_frame.pack(fill="both", expand=True)
+        prompt_label: ttk.Label = ttk.Label(prompt_frame, text="Base prompt used for every generated description")
+        prompt_label.pack(anchor="w", pady=(0, 8))
+        prompt_text: tk.Text = tk.Text(prompt_frame, wrap="word", undo=True)
+        prompt_text.pack(fill="both", expand=True)
+        prompt_text.insert("1.0", load_base_prompt())
+        button_frame: ttk.Frame = ttk.Frame(prompt_frame)
+        button_frame.pack(fill="x", pady=(10, 0))
+        cancel_button: ttk.Button = ttk.Button(button_frame, text="cancel", command=prompt_window.destroy)
+        cancel_button.pack(side="right")
+        save_button: ttk.Button = ttk.Button(
+            button_frame,
+            text="save prompt",
+            command=lambda: self._save_ai_prompt(prompt_window, prompt_text),
+        )
+        save_button.pack(side="right", padx=(0, 8))
+
+    def _save_ai_prompt(self, prompt_window: tk.Toplevel, prompt_text: tk.Text) -> None:
+        prompt: str = prompt_text.get("1.0", tk.END).strip()
+        if not prompt:
+            messagebox.showerror("Sticker Creator", "The AI base prompt cannot be empty.", parent=prompt_window)
+            return
+        try:
+            save_base_prompt(prompt)
+        except OSError as error:
+            messagebox.showerror("Sticker Creator", f"Could not save the AI prompt.\n\n{error}", parent=prompt_window)
+            return
+        prompt_window.destroy()
+        self.status_var.set("ai flavour prompt saved · future generations will use it")
 
     def generate_description(self) -> None:
         if self._vision_busy or not self._vision_ready:
