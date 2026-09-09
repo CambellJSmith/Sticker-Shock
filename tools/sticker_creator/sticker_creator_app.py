@@ -257,6 +257,8 @@ class StickerCreatorApp:
         listbox: tk.Listbox = tk.Listbox(section, height=5, bg=FIELD, fg=TEXT, selectbackground=SELECT, selectforeground="#ffffff", activestyle="none", relief=tk.FLAT, highlightthickness=1, highlightbackground=SEPARATOR, highlightcolor=ACCENT)
         listbox.pack(fill=tk.BOTH, expand=True)
         self.listboxes[key] = listbox
+        if key == "packs":
+            listbox.bind("<<ListboxSelect>>", self._on_pack_filter_selected)
         controls: ttk.Frame = ttk.Frame(section, style="Panel.TFrame")
         controls.pack(fill=tk.X, pady=(4, 0))
         ttk.Button(controls, text="+", width=3, command=lambda selected_key=key: self.add_list_value(selected_key)).pack(side=tk.LEFT)
@@ -324,6 +326,20 @@ class StickerCreatorApp:
             self.artist_var.set("")
         if self.rarity_var.get() not in self.lists["rarities"]:
             self.rarity_var.set("")
+        if hasattr(self, "sticker_tree"):
+            self.refresh_existing_stickers()
+
+    def _on_pack_filter_selected(self, _event: object = None) -> None:
+        self.refresh_existing_stickers()
+
+    def selected_pack_filter(self) -> str | None:
+        pack_listbox: tk.Listbox | None = self.listboxes.get("packs")
+        if pack_listbox is None:
+            return None
+        selection: tuple[int, ...] = pack_listbox.curselection()
+        if not selection:
+            return None
+        return str(pack_listbox.get(selection[0]))
 
     def add_list_value(self, key: str) -> None:
         if self._content_busy: # Keeps pack and artist lists stable while content is being imported or published.
@@ -446,6 +462,7 @@ class StickerCreatorApp:
     def refresh_existing_stickers(self) -> None:
         for item_id in self.sticker_tree.get_children():
             self.sticker_tree.delete(item_id)
+        selected_pack: str | None = self.selected_pack_filter()
         rows: list[tuple[int, str, str, str, str]] = []
         for resource_path in DEFINITION_ROOT.glob("*.tres"):
             try:
@@ -454,7 +471,10 @@ class StickerCreatorApp:
                 continue
             raw_id: str = read_field(text, "id")
             if raw_id.isdigit():
-                rows.append((int(raw_id), read_field(text, "name"), read_field(text, "pack"), read_field(text, "artist"), read_field(text, "rarity")))
+                pack: str = read_field(text, "pack")
+                if selected_pack is not None and pack != selected_pack:
+                    continue
+                rows.append((int(raw_id), read_field(text, "name"), pack, read_field(text, "artist"), read_field(text, "rarity")))
         rows.sort(key=lambda row: row[0])
         for row in rows:
             self.sticker_tree.insert("", tk.END, values=(f"{row[0]:06d}", row[1], row[2], row[3], row[4]))
