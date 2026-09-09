@@ -1,0 +1,67 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/market_item.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2"]
+
+[node name="market_item" type="PanelContainer"]
+custom_minimum_size = Vector2(0, 92)
+script = ExtResource("1")
+
+[node name="content" type="HBoxContainer" parent="."]
+theme_override_constants/separation = 14
+
+[node name="art" type="TextureRect" parent="content"]
+custom_minimum_size = Vector2(76, 76)
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+unique_name_in_owner = true
+
+[node name="identity" type="VBoxContainer" parent="content"]
+custom_minimum_size = Vector2(210, 0)
+size_flags_horizontal = 3
+theme_override_constants/separation = 3
+
+[node name="name" type="Label" parent="content/identity"]
+text = "sticker"
+mouse_filter = 2
+theme_override_font_sizes/font_size = 17
+unique_name_in_owner = true
+
+[node name="rarity" type="Label" parent="content/identity"]
+text = "Common"
+mouse_filter = 2
+theme_type_variation = "AccentLabel"
+unique_name_in_owner = true
+
+[node name="owned" type="Label" parent="content/identity"]
+text = "0 available"
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+unique_name_in_owner = true
+
+[node name="market" type="VBoxContainer" parent="content"]
+custom_minimum_size = Vector2(240, 0)
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="trend" type="Label" parent="content/market"]
+text = "• steady"
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+unique_name_in_owner = true
+
+[node name="price" type="Label" parent="content/market"]
+text = "0 coins"
+mouse_filter = 2
+theme_type_variation = "HeadingLabel"
+theme_override_font_sizes/font_size = 21
+unique_name_in_owner = true
+
+[node name="sell_button" type="Button" parent="content"]
+custom_minimum_size = Vector2(150, 44)
+text = "sell one"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+theme_type_variation = "PrimaryButton"
+unique_name_in_owner = true

@@ -1,6 +1,6 @@
 [gd_scene load_steps=13 format=3]
 
-[ext_resource type="Script" path="res://scripts/ui/game_ui.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/market_game_ui.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/main_menu.tscn" id="2"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="3"]
 [ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="4"]
@@ -64,6 +64,17 @@ unique_name_in_owner = true
 
 [node name="nav_shop" type="Button" parent="shell/nav_panel/nav_content"]
 text = "packs"
+script = ExtResource("4")
+mouse_default_cursor_shape = 2
+alignment = 0
+toggle_mode = true
+theme_type_variation = "NavButton"
+icon = ExtResource("5")
+custom_minimum_size = Vector2(0, 44)
+unique_name_in_owner = true
+
+[node name="nav_market" type="Button" parent="shell/nav_panel/nav_content"]
+text = "market"
 script = ExtResource("4")
 mouse_default_cursor_shape = 2
 alignment = 0
