@@ -3,6 +3,7 @@ import re
 import threading
 import tkinter as tk
 from pathlib import Path
+from queue import Empty, Queue # Delivers batch progress without calling Tk from a worker thread.
 from tkinter import filedialog, messagebox, ttk
 
 from sticker_creator_app import (
@@ -10,13 +11,14 @@ from sticker_creator_app import (
     DEFINITION_ROOT,
     DEFINITION_SCRIPT_PATH,
     StickerCreatorApp,
-    atomic_write,
     godot_quote,
-    quantize_png,
     read_field,
     slugify,
     valid_png,
 )
+from sticker_art_store import replace_files # Commits source, recipe, artwork, and resources as one recoverable save.
+from sticker_border import BorderSettings # Carries immutable settings into batch and replacement-art operations.
+from sticker_border_controls import BorderControls # Reuses the complete border editor inside batch import.
 
 RARITIES: tuple[str, ...] = ("Common", "Uncommon", "Rare", "Elite", "Legendary", "Unique")
 BATCH_RARITIES: tuple[str, ...] = ("Common", "Uncommon", "Rare", "Elite", "Legendary")
@@ -35,6 +37,7 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         self._editing_definition_path: Path | None = None
         self._editing_art_path: Path | None = None
         self._batch_busy: bool = False
+        self._batch_events: Queue[tuple[str, int, str]] = Queue() # Transfers progress and completion from batch processing to the UI thread.
         self._add_existing_sticker_controls()
 
     def load_lists(self) -> dict[str, list[str]]:
@@ -101,6 +104,8 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         return ART_ROOT / match.group(1)
 
     def edit_selected_sticker(self) -> None:
+        if self._content_busy: # Avoids loading an edit while batch import or content publication owns the files.
+            return # Leaves the current authoring operation undisturbed.
         sticker_id: int | None = self._selected_sticker_id()
         if sticker_id is None:
             messagebox.showerror("Sticker Creator", "Select a sticker first.", parent=self.root)
@@ -118,12 +123,18 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         if art_path is None or not art_path.is_file():
             messagebox.showerror("Sticker Creator", "The selected sticker art could not be found.", parent=self.root)
             return
+        try: # Loads preserved source art instead of feeding the rendered border back into the processor.
+            source_path, border_settings = self._art_store.load(sticker_id, art_path) # Restores the exact saved recipe or a disabled border for legacy content.
+        except (OSError, ValueError) as error: # Rejects broken source records before entering an unsafe edit session.
+            messagebox.showerror("cannot edit sticker", str(error), parent=self.root) # Identifies missing originals or invalid border metadata.
+            return # Preserves the existing sticker until its original can be recovered.
         self._editing_id = sticker_id
         self._editing_definition_path = resource_path
         self._editing_art_path = art_path
         self.next_id_var.set(str(sticker_id))
         self.name_var.set(read_field(resource_text, "name"))
-        self.art_var.set(str(art_path))
+        self.art_var.set(str(source_path)) # Always previews and edits from the preserved original image.
+        self._border_controls.set_settings(border_settings) # Restores chosen colour, pixel width, and smoothing strength.
         self.description_text.delete("1.0", tk.END)
         self.description_text.insert("1.0", read_field(resource_text, "description"))
         self.pack_var.set(read_field(resource_text, "pack"))
@@ -132,6 +143,8 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         self.status_var.set(f"editing #{sticker_id:06d} · create sticker will save changes")
 
     def delete_selected_sticker(self) -> None:
+        if self._content_busy: # Avoids deleting IDs or source records that a batch import is using.
+            return # Waits for the active content operation to finish.
         sticker_id: int | None = self._selected_sticker_id()
         if sticker_id is None:
             messagebox.showerror("Sticker Creator", "Select a sticker first.", parent=self.root)
@@ -154,9 +167,10 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
             return
         art_path: Path | None = self._art_path_from_resource(resource_text)
         try:
-            resource_path.unlink(missing_ok=True)
-            if art_path is not None:
-                art_path.unlink(missing_ok=True)
+            removals: tuple[Path, ...] = (resource_path, *self._art_store.paths(sticker_id)) # Includes the source PNG and border recipe in sticker deletion.
+            if art_path is not None: # Adds runtime artwork only when a valid path was resolved.
+                removals += (art_path,) # Keeps deletion scoped to this exact sticker.
+            replace_files({}, remove=removals) # Removes the complete sticker bundle with rollback on ordinary filesystem failure.
         except OSError as error:
             messagebox.showerror("Sticker Creator", f"Could not delete the sticker.\n\n{error}", parent=self.root)
             return
@@ -167,6 +181,8 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         self.status_var.set(f"deleted #{sticker_id:06d} · id is available again")
 
     def create_sticker(self) -> None:
+        if self._content_busy: # Prevents both new imports and existing-sticker edits from racing against a batch.
+            return # Leaves file mutation ownership with the active operation.
         if self._editing_id is None:
             super().create_sticker()
             return
@@ -187,15 +203,6 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         art_filename: str = base_name + ".png"
         destination_art: Path = ART_ROOT / art_filename
         destination_definition: Path = DEFINITION_ROOT / (base_name + ".tres")
-        try:
-            if old_art is not None and source_art.resolve() == old_art.resolve():
-                if destination_art != old_art:
-                    destination_art.write_bytes(old_art.read_bytes())
-            else:
-                quantize_png(source_art, destination_art)
-        except (OSError, ValueError) as art_error:
-            messagebox.showerror("art processing failed", str(art_error), parent=self.root)
-            return
         definition_text: str = self._build_definition_text(
             sticker_id,
             sticker_name,
@@ -206,12 +213,11 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
             self.rarity_var.get(),
         )
         try:
-            atomic_write(destination_definition, definition_text)
-            if old_definition is not None and old_definition != destination_definition:
-                old_definition.unlink(missing_ok=True)
-            if old_art is not None and old_art != destination_art:
-                old_art.unlink(missing_ok=True)
-        except OSError as error:
+            files: dict[Path, bytes] = self._art_store.prepare(sticker_id, source_art, destination_art, self._border_controls.settings(), old_art) # Rebuilds changed borders and replacement artwork from their preserved source.
+            files[destination_definition] = definition_text.encode("utf-8") # Groups runtime metadata with its exact generated image and recipe.
+            removals: tuple[Path, ...] = tuple(path for path in (old_definition, old_art) if path is not None and path not in files) # Removes only obsolete filenames after a rename.
+            replace_files(files, removals) # Preserves the previous sticker if any part of the complete save fails.
+        except (OSError, ValueError) as error: # Reports image processing and filesystem failures through the existing edit flow.
             messagebox.showerror("save failed", str(error), parent=self.root)
             return
         self._clear_edit_state()
@@ -248,12 +254,14 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         super().clear_form()
 
     def _clear_edit_state(self) -> None:
+        if self._editing_id is not None: # Prevents a legacy border-free edit from becoming the default for new imports.
+            self._border_controls.set_settings(BorderSettings()) # Restores automatic border creation when leaving an edit session.
         self._editing_id = None
         self._editing_definition_path = None
         self._editing_art_path = None
 
     def open_batch_import(self) -> None:
-        if self._batch_busy:
+        if self._content_busy: # Avoids opening another batch while a content operation is active.
             return
         selected_folder: str = filedialog.askdirectory(parent=self.root, title="select folder of named PNG stickers")
         if not selected_folder:
@@ -275,8 +283,8 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
 
         batch_window: tk.Toplevel = tk.Toplevel(self.root)
         batch_window.title("Sticker Creator · Batch Import")
-        batch_window.geometry("620x330")
-        batch_window.minsize(520, 300)
+        batch_window.geometry("820x640") # Fits the shared border controls, artwork preview, and import actions.
+        batch_window.minsize(780, 620) # Keeps the batch recipe and commit actions visible together.
         batch_window.transient(self.root)
         batch_window.grab_set()
         frame: ttk.Frame = ttk.Frame(batch_window, padding=14)
@@ -297,52 +305,83 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         ttk.Label(frame, text=rarity_text, wraplength=400).grid(row=4, column=1, sticky="w", pady=5)
         ttk.Label(
             frame,
-            text="Names come from filenames. Each image is quantized to 256 colors. Descriptions are left blank for manual editing.",
-            wraplength=560,
+            text="The border settings below apply to every image. Names come from filenames; descriptions remain blank.", # Explains the shared recipe before a batch is submitted.
+            wraplength=740, # Uses the dialog width for concise import guidance.
         ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(10, 12))
+        preview_source: tk.StringVar = tk.StringVar(batch_window, str(png_paths[0])) # Starts the batch preview with the first selected image.
+        preview_names: tuple[str, ...] = tuple(path.name for path in png_paths) # Lists all images available for visual checking before import.
+        preview_name: tk.StringVar = tk.StringVar(batch_window, preview_names[0]) # Keeps the preview selection independent of the applied batch recipe.
+        ttk.Label(frame, text="preview artwork").grid(row=6, column=0, sticky="w", padx=(0, 12)) # Identifies which batch image is being inspected.
+        preview_choice: ttk.Combobox = ttk.Combobox(frame, textvariable=preview_name, values=preview_names, state="readonly") # Allows inspection of differently sized or shaped batch artwork.
+        preview_choice.grid(row=6, column=1, sticky="ew") # Uses the full available width for long filenames.
+        preview_choice.bind("<<ComboboxSelected>>", lambda _event: preview_source.set(str(folder_path / preview_name.get()))) # Switches only the preview image while retaining shared settings.
+        try: # Starts batch authoring with the current single-import recipe when valid.
+            initial_settings: BorderSettings = self._border_controls.settings() # Carries the chosen colour and geometry into batch import.
+        except ValueError: # Allows batch import even if the main form contains incomplete text.
+            initial_settings = BorderSettings() # Uses valid automatic border defaults for the batch editor.
+        border_controls: BorderControls = BorderControls(frame, preview_source, self._art_store.resolve_source, initial_settings) # Reuses the exact single-import controls and processing preview.
+        border_controls.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(8, 0)) # Places the batch recipe directly above the import action.
         button_frame: ttk.Frame = ttk.Frame(frame)
-        button_frame.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        button_frame.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(8, 0)) # Keeps the import action below the border preview.
         ttk.Button(button_frame, text="cancel", command=batch_window.destroy).pack(side="right")
         ttk.Button(
             button_frame,
             text=f"import {len(png_paths)} stickers",
             style="Accent.TButton",
-            command=lambda: self._start_batch_import(batch_window, png_paths, pack_var.get(), artist_var.get()),
+            command=lambda: self._start_batch_import(batch_window, png_paths, pack_var.get(), artist_var.get(), border_controls), # Snapshots the complete chosen recipe when import begins.
         ).pack(side="right", padx=(0, 8))
 
-    def _start_batch_import(self, batch_window: tk.Toplevel, png_paths: list[Path], pack_name: str, artist_name: str) -> None:
+    def _start_batch_import(self, batch_window: tk.Toplevel, png_paths: list[Path], pack_name: str, artist_name: str, border_controls: BorderControls) -> None: # Validates and snapshots a batch before background processing begins.
         if pack_name not in self.lists["packs"] or artist_name not in self.lists["artists"]:
             messagebox.showerror("Sticker Creator", "Choose a valid pack and artist.", parent=batch_window)
             return
+        try: # Reads Tk values before transferring work to the background thread.
+            settings: BorderSettings = border_controls.settings() # Freezes colour, width, and smoothing for every image in this batch.
+        except ValueError as error: # Keeps the batch editor open when its recipe needs correction.
+            messagebox.showerror("cannot import stickers", str(error), parent=batch_window) # Explains invalid border values without creating any files.
+            return # Allows the user to correct the recipe and retry.
         batch_window.destroy()
         self._batch_busy = True
+        self._content_busy = True # Prevents ID reuse and concurrent edits while the batch writes its content.
+        self.commit_button.state(["disabled"]) # Prevents publication before the batch has completed.
         self.batch_import_button.state(["disabled"])
         self.status_var.set(f"batch import · 0/{len(png_paths)}")
         threading.Thread(
             target=self._batch_import_worker,
-            args=(png_paths, pack_name, artist_name),
+            args=(png_paths, pack_name, artist_name, settings), # Passes plain immutable settings rather than reading live Tk variables.
             daemon=True,
         ).start()
+        self.root.after(60, self._poll_batch_events) # Applies worker progress on the Tk thread.
 
-    def _batch_import_worker(self, png_paths: list[Path], pack_name: str, artist_name: str) -> None:
+    def _batch_import_worker(self, png_paths: list[Path], pack_name: str, artist_name: str, settings: BorderSettings) -> None: # Applies one frozen border recipe to the selected images sequentially.
         created_count: int = 0
         try:
             for index, source_art in enumerate(png_paths):
                 sticker_id: int = self.next_sticker_id()
                 sticker_name: str = source_art.stem
                 rarity: str = BATCH_RARITIES[index % len(BATCH_RARITIES)]
-                self.root.after(
-                    0,
-                    lambda current=index + 1, total=len(png_paths), name=sticker_name, current_rarity=rarity: self.status_var.set(
-                        f"batch import · {current}/{total} · {name} · {current_rarity}"
-                    ),
-                )
-                self._create_batch_sticker(sticker_id, sticker_name, source_art, pack_name, artist_name, rarity)
+                self._batch_events.put(("progress", index + 1, f"batch import · {index + 1}/{len(png_paths)} · {sticker_name} · {rarity}")) # Transfers progress without calling Tk from a worker.
+                self._create_batch_sticker(sticker_id, sticker_name, source_art, pack_name, artist_name, rarity, settings) # Reuses the individual-import source and border pipeline.
                 created_count += 1
         except Exception as error:
-            self.root.after(0, lambda: self._batch_import_failed(created_count, str(error)))
+            self._batch_events.put(("error", created_count, str(error))) # Captures the exception text before Python clears the exception variable.
             return
-        self.root.after(0, lambda: self._batch_import_complete(created_count))
+        self._batch_events.put(("complete", created_count, "")) # Reports completion through the main-thread event queue.
+
+    def _poll_batch_events(self) -> None: # Drains worker feedback and owns all Tk status and dialog updates.
+        try: # Handles every event already waiting without blocking input.
+            while True: # Processes progress followed by a terminal completion or failure event.
+                kind, count, message = self._batch_events.get_nowait() # Reads one plain worker message.
+                if kind == "progress": # Updates the active image and rarity while processing continues.
+                    self.status_var.set(message) # Updates Tk only on its owning thread.
+                elif kind == "error": # Finishes the busy state after a failed import.
+                    self._batch_import_failed(count, message) # Shows the captured error and successfully imported count.
+                    return # Stops polling after a terminal event.
+                else: # Handles successful batch completion.
+                    self._batch_import_complete(count) # Refreshes the catalogue and releases authoring controls.
+                    return # Stops polling after the batch is complete.
+        except Empty: # Yields when the next worker event is not ready yet.
+            self.root.after(60, self._poll_batch_events) # Keeps the interface responsive between progress updates.
 
     def _create_batch_sticker(
         self,
@@ -352,34 +391,33 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         pack_name: str,
         artist_name: str,
         rarity: str,
+        settings: BorderSettings, # Receives the immutable border settings chosen before the batch started.
     ) -> None:
         base_name: str = f"{sticker_id:06d}_{slugify(sticker_name)}"
         art_filename: str = base_name + ".png"
         destination_art: Path = ART_ROOT / art_filename
         destination_definition: Path = DEFINITION_ROOT / (base_name + ".tres")
-        quantize_png(source_art, destination_art)
-        try:
-            atomic_write(
-                destination_definition,
-                self._build_definition_text(sticker_id, sticker_name, art_filename, "", pack_name, artist_name, rarity),
-            )
-        except OSError:
-            destination_art.unlink(missing_ok=True)
-            raise
+        files: dict[Path, bytes] = self._art_store.prepare(sticker_id, source_art, destination_art, settings) # Generates the bordered image while preserving the exact original PNG.
+        files[destination_definition] = self._build_definition_text(sticker_id, sticker_name, art_filename, "", pack_name, artist_name, rarity).encode("utf-8") # Adds runtime metadata to the same content bundle.
+        replace_files(files) # Publishes this complete sticker or restores its previous state on failure.
 
     def _batch_import_complete(self, created_count: int) -> None:
         self._batch_busy = False
+        self._content_busy = False # Releases content mutation ownership after successful import.
+        self.commit_button.state(["!disabled"]) # Re-enables the normal content PR workflow.
         self.batch_import_button.state(["!disabled"])
         self.refresh_existing_stickers()
         self.status_var.set(f"batch import complete · created {created_count} stickers")
         messagebox.showinfo(
             "Sticker Creator · Batch Import",
-            f"Created {created_count} stickers.\n\nEach PNG was named from its filename, assigned a cycling rarity, quantized, and created with a blank description.",
+            f"Created {created_count} stickers.\n\nThe selected border settings were applied to every image. Original artwork and border settings were saved for future edits.", # Confirms both exported borders and reversible authoring records.
             parent=self.root,
         )
 
     def _batch_import_failed(self, created_count: int, error_message: str) -> None:
         self._batch_busy = False
+        self._content_busy = False # Restores authoring after a partial batch failure.
+        self.commit_button.state(["!disabled"]) # Allows the successfully imported content to be published.
         self.batch_import_button.state(["!disabled"])
         self.refresh_existing_stickers()
         self.status_var.set(f"batch import stopped · {created_count} stickers created")
