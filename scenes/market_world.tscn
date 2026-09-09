@@ -1,0 +1,94 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/market_world.gd" id="1_market"]
+[ext_resource type="Script" path="res://scripts/flat_presentation_camera.gd" id="2_flat_camera"]
+[ext_resource type="PackedScene" path="res://scenes/ui/market_hud.tscn" id="3_hud"]
+
+[sub_resource type="Environment" id="Environment_market"]
+background_mode = 1
+background_color = Color(0.018, 0.022, 0.027, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.42, 0.49, 0.55, 1)
+ambient_light_energy = 0.48
+
+[sub_resource type="StandardMaterial3D" id="Material_desk"]
+albedo_color = Color(0.075, 0.084, 0.092, 1)
+roughness = 0.48
+metallic = 0.42
+
+[sub_resource type="BoxMesh" id="Mesh_desk"]
+material = SubResource("Material_desk")
+size = Vector3(12.6, 0.32, 6.8)
+
+[sub_resource type="StandardMaterial3D" id="Material_screen"]
+albedo_color = Color(0.025, 0.075, 0.07, 1)
+emission_enabled = true
+emission = Color(0.10, 0.48, 0.38, 1)
+emission_energy_multiplier = 1.45
+roughness = 0.22
+metallic = 0.18
+
+[sub_resource type="BoxMesh" id="Mesh_screen"]
+material = SubResource("Material_screen")
+size = Vector3(2.4, 1.35, 0.12)
+
+[sub_resource type="StandardMaterial3D" id="Material_trim"]
+albedo_color = Color(0.27, 0.20, 0.08, 1)
+roughness = 0.24
+metallic = 0.78
+
+[sub_resource type="BoxMesh" id="Mesh_trim"]
+material = SubResource("Material_trim")
+size = Vector3(5.8, 0.10, 0.22)
+
+[node name="market_world" type="Node3D"]
+script = ExtResource("1_market")
+
+[node name="world" type="Node3D" parent="."]
+
+[node name="environment" type="WorldEnvironment" parent="world"]
+environment = SubResource("Environment_market")
+
+[node name="key_light" type="DirectionalLight3D" parent="world"]
+rotation_degrees = Vector3(-52, -18, -10)
+light_color = Color(1, 0.88, 0.70, 1)
+light_energy = 1.38
+shadow_enabled = true
+directional_shadow_max_distance = 35.0
+
+[node name="market_fill" type="OmniLight3D" parent="world"]
+position = Vector3(0, 3.8, -1.8)
+omni_range = 12.0
+light_color = Color(0.24, 0.78, 0.67, 1)
+light_energy = 0.72
+shadow_enabled = false
+
+[node name="camera" type="Camera3D" parent="world"]
+current = false
+projection = 1
+size = 9.2
+near = 0.05
+far = 100.0
+script = ExtResource("2_flat_camera")
+
+[node name="trading_desk" type="MeshInstance3D" parent="world"]
+position = Vector3(0, -0.28, 0)
+mesh = SubResource("Mesh_desk")
+
+[node name="screen_left" type="MeshInstance3D" parent="world"]
+position = Vector3(-2.8, 1.25, -2.65)
+rotation_degrees = Vector3(-8, 10, 0)
+mesh = SubResource("Mesh_screen")
+
+[node name="screen_right" type="MeshInstance3D" parent="world"]
+position = Vector3(2.8, 1.25, -2.65)
+rotation_degrees = Vector3(-8, -10, 0)
+mesh = SubResource("Mesh_screen")
+
+[node name="gold_trim" type="MeshInstance3D" parent="world"]
+position = Vector3(0, 0.06, 2.85)
+mesh = SubResource("Mesh_trim")
+
+[node name="interface" type="CanvasLayer" parent="."]
+
+[node name="market_hud" parent="interface" instance=ExtResource("3_hud")]
