@@ -11,7 +11,7 @@ const MIN_MULTIPLIER: float = 0.35 # Prevents prolonged bearish runs from collap
 const MAX_MULTIPLIER: float = 3.50 # Prevents extended bullish runs from inflating a sticker without practical bounds.
 const RARITY_BASE_VALUES: Dictionary[String, int] = {"Common": 16, "Uncommon": 28, "Rare": 55, "Elite": 110, "Legendary": 240, "Unique": 420} # Establishes sharply increasing collector value by authored rarity.
 
-var _states: Dictionary[String, Dictionary] = {} # Stores one persistent price state per authored sticker design so both editions share the same market trend.
+var _states: Dictionary[String, Variant] = {} # Stores one persistent dictionary state per authored sticker design while keeping the outer string keys statically typed.
 var _last_tick_unix: int = 0 # Stores the UTC boundary of the most recently simulated market tick.
 var _random_number_generator: RandomNumberGenerator = RandomNumberGenerator.new() # Owns all market noise, regime changes, and occasional demand shocks.
 
@@ -29,7 +29,7 @@ func advance_to_now(catalog: StickerCatalog) -> bool: # Advances persistent valu
 		_save() # Persists the stable bucket immediately so reopening cannot repeatedly initialize the same clock.
 		return false # Reports no price movement because no prior interval existed to simulate.
 	var elapsed_seconds: int = maxi(current_unix - _last_tick_unix, 0) # Ignores backwards system-clock changes rather than reversing market history.
-	var elapsed_ticks: int = elapsed_seconds / MARKET_TICK_SECONDS # Converts wall-clock elapsed time into complete pricing intervals only.
+	var elapsed_ticks: int = int(elapsed_seconds / MARKET_TICK_SECONDS) # Converts wall-clock elapsed time into complete pricing intervals explicitly for the static analyzer.
 	if elapsed_ticks <= 0: # Rejects sub-tick polling without writing or touching quote state.
 		return false # Reports that the market remains on the current published quote.
 	var simulated_ticks: int = mini(elapsed_ticks, MAX_CATCHUP_TICKS) # Bounds startup work while still allowing a full week of offline market evolution.
@@ -74,7 +74,11 @@ func get_seconds_until_next_tick() -> int: # Returns real-world whole seconds un
 func _advance_one_tick(catalog: StickerCatalog) -> void: # Evolves every authored sticker through one common market interval while preserving independent trends.
 	_ensure_catalog_states(catalog) # Guarantees stickers added while the game is running receive valid state before iteration.
 	for artwork_path: String in _states.keys(): # Advances each design independently so one sticker can rally while another falls.
-		var state: Dictionary = _states[artwork_path] # Retrieves the mutable persistent design state for the current tick.
+		var state_variant: Variant = _states.get(artwork_path, {}) # Retrieves the stored per-design state through the typed outer dictionary.
+		if state_variant is not Dictionary: # Rejects malformed runtime state rather than allowing one bad entry to break the complete market tick.
+			_states[artwork_path] = _create_state(artwork_path, catalog) # Replaces the invalid entry with a clean fair-value market state.
+			continue # Advances to the next design after restoring this malformed entry.
+		var state: Dictionary = state_variant as Dictionary # Narrows the validated mutable state for the current market tick.
 		var trend_ticks_remaining: int = maxi(int(state.get("trend_ticks_remaining", 0)), 0) # Reads how long the current directional regime still persists.
 		if trend_ticks_remaining <= 0: # Chooses a new multi-tick regime only after the previous run completes.
 			_assign_new_trend(state) # Starts another bullish, bearish, or sideways period with a random duration.
@@ -115,7 +119,12 @@ func _ensure_catalog_states(catalog: StickerCatalog) -> void: # Ensures every cu
 func _get_state(artwork_path: String, catalog: StickerCatalog) -> Dictionary: # Returns one valid design state while supporting newly added catalogue content lazily.
 	if not _states.has(artwork_path): # Detects a design that did not exist when the market was initialized.
 		_states[artwork_path] = _create_state(artwork_path, catalog) # Creates its first persistent quote without touching other stickers.
-	return _states[artwork_path] # Returns the mutable state object owned by this market model.
+	var state_variant: Variant = _states.get(artwork_path, {}) # Retrieves the stored state through the statically typed outer lookup.
+	if state_variant is Dictionary: # Accepts the expected mutable dictionary state.
+		return state_variant as Dictionary # Returns the validated design-level market state.
+	var replacement_state: Dictionary = _create_state(artwork_path, catalog) # Reconstructs malformed state defensively from current authored metadata.
+	_states[artwork_path] = replacement_state # Replaces the invalid entry so subsequent reads remain stable.
+	return replacement_state # Returns the newly valid state to the requesting quote path.
 
 func _create_state(artwork_path: String, catalog: StickerCatalog) -> Dictionary: # Creates the initial collector preference, quote multiplier, trend, and history for one authored design.
 	var sticker_id: int = maxi(catalog.get_sticker_id(artwork_path), 1) # Uses authored numeric identity to derive a stable design-specific demand preference.
@@ -131,7 +140,9 @@ func _append_history_price(artwork_path: String, state: Dictionary, catalog: Sti
 	var base_value: int = int(RARITY_BASE_VALUES.get(rarity_name, RARITY_BASE_VALUES["Common"])) # Resolves the normal-edition long-term value anchor.
 	var normal_price: int = maxi(int(round(float(base_value) * float(state.get("collector_factor", 1.0)) * float(state.get("multiplier", 1.0)))), 1) # Builds the published normal-edition quote for historical percentage movement.
 	var history_variant: Variant = state.get("history", []) # Retrieves the serializable history collection defensively.
-	var history: Array = history_variant as Array if history_variant is Array else [] # Recovers gracefully from malformed history data.
+	var history: Array = [] # Seeds a safe empty history before validating persisted state.
+	if history_variant is Array: # Accepts only the expected serializable quote-history collection.
+		history = (history_variant as Array).duplicate() # Uses an independent mutable copy so state replacement remains explicit.
 	history.append(normal_price) # Appends the newly published quote in chronological order.
 	while history.size() > HISTORY_LENGTH: # Keeps only the compact recent market window needed by UI feedback.
 		history.pop_front() # Removes the oldest quote without reallocating the entire state object.
