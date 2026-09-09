@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/game_controller.gd" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/special_edition_game_controller.gd" id="1_controller"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_ui.tscn" id="2_ui"]
 
 [node name="main" type="Node"]
