@@ -12,6 +12,7 @@ const CARRY_HEIGHT: float = StickerMesh.PEEL_CURL_WIDTH * 2.0 / PI # Defines the
 
 var _sticker_size: Vector2 = Vector2.ONE # Stores the complete artwork-defined physical dimensions used for interaction and full-peel calculations.
 var _visual: StickerMesh # Stores the deformable rendered surface owned by this sticker.
+var _contact_shadow: StickerContactShadow # Stores the lightweight resting silhouette that gives the flat sticker a small physical contact shadow.
 var _collision_shape: CollisionShape3D # Stores the lightweight flat picking volume used while the visual mesh curls.
 var _landing_preview: StickerLandingPreview # Stores the independent flat silhouette that marks the exact carried sticker landing transform.
 var _state: int = InteractionState.RESTING # Stores the current physical interaction phase without overlapping boolean states.
@@ -38,6 +39,10 @@ func configure(sticker_size: Vector2, sticker_texture: Texture2D) -> void: # Com
 	add_child(_visual) # Parents the visual component to the interactive sticker root.
 	_visual.configure(sticker_size, sticker_texture) # Builds the tessellated surface and binds the supplied artwork as the complete sticker shape.
 	_sticker_size = _visual.get_physical_size() # Uses the artwork dimensions for picking and exact full-peel calculations.
+	_contact_shadow = StickerContactShadow.new() # Creates the separate cheap contact-shadow component used only while the sticker is flat.
+	_contact_shadow.name = "contact_shadow" # Gives the helper a clear runtime tree name for inspection and profiling.
+	add_child(_contact_shadow) # Parents the contact shadow to the sticker root so it follows persistent placement and stack movement automatically.
+	_contact_shadow.configure(_sticker_size, sticker_texture) # Builds the small softened artwork-alpha shadow beneath the resting sticker.
 	_landing_preview = StickerLandingPreview.new() # Creates the dedicated landing-outline component without coupling preview rendering into the peel mesh.
 	_landing_preview.name = "landing_preview" # Gives the landing helper a clear runtime tree name.
 	add_child(_landing_preview) # Keeps the preview lifecycle owned by this sticker while its top-level transform remains independent.
@@ -62,6 +67,7 @@ func can_begin_drag() -> bool: # Exposes whether this sticker is physically sett
 func begin_drag(page_world_point: Vector3) -> void: # Captures the clicked material point and establishes a stable reference transform for the peel.
 	if not can_begin_drag(): # Rejects grabs while the sticker is still autonomously attaching to the page.
 		return # Leaves the current physical animation untouched until it is complete.
+	_contact_shadow.hide_shadow() # Removes the synthetic resting shadow before real raised geometry and directional lighting take over.
 	_state = InteractionState.PEELING # Starts the attached peel phase for the new pointer gesture.
 	_drag_start_world = page_world_point # Stores the pointer location on the page plane at grab time.
 	_drag_origin_transform = global_transform # Stores the complete root transform before any peel-driven visual changes occur.
@@ -124,6 +130,7 @@ func set_stack_height(world_y: float) -> void: # Places this sticker slightly ab
 func begin_new_sticker_landing(world_xz: Vector2, landing_height: float) -> void: # Starts a newly won sticker above its chosen page location and performs the same little bounce followed by a hard flat slam.
 	_rest_height = landing_height # Stores the exact persistent paper-stack height this new physical copy will occupy after impact.
 	_state = InteractionState.LANDING # Places the new sticker directly into the autonomous release-and-slam phase without requiring a peel gesture first.
+	_contact_shadow.hide_shadow() # Keeps the synthetic contact shadow absent while the newly placed sticker is still visibly airborne.
 	_landing_elapsed = 0.0 # Starts the complete landing animation from its first frame.
 	_landing_target_position = Vector3(world_xz.x, landing_height, world_xz.y) # Stores the exact final flat x/z placement and physical stack height.
 	_landing_start_position = Vector3(world_xz.x, landing_height + CARRY_HEIGHT * 0.72, world_xz.y) # Starts the won sticker visibly above the page as if the player has just let it go.
@@ -200,6 +207,7 @@ func _process_return(delta: float) -> void: # Relaxes an incomplete peel back on
 		_landing_preview.hide_preview() # Guarantees an incomplete peel never leaves a stale landing marker behind.
 		global_transform = _drag_origin_transform # Restores the exact transform present before the incomplete peel began.
 		_rest_height = global_position.y # Preserves the current stack layer as the attachment height after the exact transform restoration.
+		_contact_shadow.show_shadow() # Restores the small contact shadow only after the sticker is fully flat on its original attachment.
 		_state = InteractionState.RESTING # Makes the fully reattached sticker available for another click.
 
 func _process_landing(delta: float) -> void: # Performs the requested little upward bounce followed by an accelerating slam flat onto the new page position.
@@ -229,4 +237,5 @@ func _process_landing(delta: float) -> void: # Performs the requested little upw
 		_visual.clear_turnover() # Leaves the printed face perfectly flat on the page after impact.
 		_visual.clear_peel() # Guarantees no previous curl state remains after a complete detach-and-place cycle.
 		_landing_preview.hide_preview() # Keeps the placement guide disabled once the physical sticker has occupied the predicted landing transform.
+		_contact_shadow.show_shadow() # Restores the small contact shadow only after the sticker has completed its physical slam onto the page.
 		_state = InteractionState.RESTING # Makes the newly placed sticker immediately available for another realistic peel.
