@@ -33,8 +33,7 @@ func refresh() -> void: # Refreshes compact title-screen progress when requested
 	_progress.max_value = maxi(total, 1) # Keeps the completion range valid for an empty catalogue.
 	_progress.value = collected # Updates the visual progress indicator.
 	_continue.text = "finish placing your sticker" if _book_state.has_pending_stickers() else ("open your book" if placed > 0 else "start your collection") # Treats pending state only as an interrupted collection placement.
-	var remaining: int = _economy.get_free_pack_seconds_remaining() # Reads the persisted real-world cooldown.
-	_free.text = "your free pack is ready  →" if remaining <= 0 else "next free pack in %s" % UIFormat.duration(remaining) # Keeps eligibility visible on the title screen.
+	_refresh_free_pack_shortcut() # Shows rollover free-pack inventory when supported while retaining the legacy timer fallback.
 
 func focus_primary() -> void: # Establishes predictable keyboard focus on entering the menu.
 	_continue.grab_focus() # Selects the main progression action.
@@ -46,3 +45,12 @@ func _continue_game() -> void: # Continues at the most useful gameplay destinati
 		_controller.show_book() # Returns to the last saved spread.
 	else: # Handles a new collection with nothing in the book yet.
 		_controller.show_shop() # Starts with pack acquisition so the player can collect their first stickers.
+
+func _refresh_free_pack_shortcut() -> void: # Formats either the rollover bank or the original single free-pack timer without changing navigation behavior.
+	if _economy.has_method("get_free_pack_count"): # Detects the banked free-pack economy dynamically through the existing base-typed dependency.
+		var banked_count: int = int(_economy.call("get_free_pack_count")) # Reads the number of immediately claimable stored packs.
+		if banked_count > 0: # Prioritizes ready rewards over the timer toward another rollover claim.
+			_free.text = "%d free pack%s ready  →" % [banked_count, "" if banked_count == 1 else "s"] # Shows the exact stored count on the title-screen shortcut.
+			return # Leaves the ready bank as the most relevant call to action.
+	var remaining: int = _economy.get_free_pack_seconds_remaining() # Reads the persisted real-world countdown when no stored reward is ready.
+	_free.text = "your free pack is ready  →" if remaining <= 0 else "next free pack in %s" % UIFormat.duration(remaining) # Preserves compatibility with non-banked economy implementations.
