@@ -2,7 +2,7 @@ class_name RemovableSpecialEditionGameController
 extends SpecialEditionGameController
 
 func _init() -> void: # Extends the established premium/market/free-pack composition with removable book placement state.
-	super._init() # Preserves banked free packs, market-linked pricing, premium guarantees, and edition-aware auto packing.
+	super() # Preserves banked free packs, market-linked pricing, premium guarantees, and edition-aware auto packing.
 	_book_state = RemovableStickerBookState.new() # Replaces only physical book persistence with the compatible removable implementation.
 
 func show_book_sticker_inspection(sticker_key: String, placement_id: String) -> bool: # Opens one exact placed copy and exposes a reversible return-to-collection action.
