@@ -11,8 +11,9 @@ func _init() -> void: # Replaces only the economy and sticker silhouette solver 
 	_economy = BankedFreePackEconomy.new() # Preserves live pack pricing and premium milestones while allowing up to five free packs to roll over.
 	_auto_packer = SpecialEditionAutoPacker.new() # Preserves the complete existing controller flow while ensuring edition copy keys never reach ResourceLoader during packing.
 
-func _ready() -> void: # Composes the established game first, then adds persistent live market state and its physically separate exchange world.
+func _ready() -> void: # Composes the established game first, then binds achievements and adds persistent live market state plus its physically separate exchange world.
 	super._ready() # Initializes catalogue, economy, book, pack shop, preferences, shared interface, and startup menu through the established coordinator.
+	SteamAchievements.configure(_economy, _catalog, _book_state) # Binds loaded progression to the scalable achievement rule engine only after current catalogue and save state are authoritative.
 	_market.initialize(_catalog) # Restores persistent live trends and applies the current balanced resale-value scale.
 	var special_economy: GuaranteedSpecialStickerEconomy = _economy as GuaranteedSpecialStickerEconomy # Narrows the configured economy before enabling live pack pricing.
 	if special_economy != null: # Protects startup if a future controller configures a different economy implementation.
@@ -79,6 +80,7 @@ func sell_market_sticker(sticker_key: String) -> int: # Sells one loose exact-ed
 	var special_economy: GuaranteedSpecialStickerEconomy = _economy as GuaranteedSpecialStickerEconomy # Narrows the configured edition-aware economy for its atomic sale transaction.
 	if special_economy == null or not special_economy.sell_owned_copy(sticker_key, sale_price): # Atomically validates ownership, removes one exact edition, credits currency, and saves progression.
 		return 0 # Reports no sale if persistent inventory changed before the transaction could commit.
+	SteamAchievements.report_market_sale() # Persists and synchronizes the first successful exchange sale only after the atomic economy transaction has committed.
 	if _market_world != null: # Refreshes the active exchange immediately after successful inventory mutation.
 		_market_world.get_ui().refresh() # Updates remaining sellable copies while keeping the current market quote unchanged.
 	_game_ui.notify_progress_changed() # Refreshes shared currency balance, collection state, and title-screen progression after the completed sale.

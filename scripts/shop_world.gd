@@ -15,7 +15,7 @@ var _reveal_nodes: Array[PackRevealSticker] = [] # Tracks the current physical r
 var _revealed_paths: PackedStringArray = PackedStringArray() # Stores transient exact copy identities; ownership already lives in the collection.
 
 func configure(controller: GameController, economy: StickerEconomy, catalog: StickerCatalog, _book_state: StickerBookState) -> void: # Binds authoritative models and the independent HUD.
-	_controller = controller # Retains transaction and navigation ownership.
+	_controller = controller # Retains physical shop owner for reveal construction and completion.
 	_environment_resource = _environment_node.environment # Preserves the environment for later activation.
 	_economy = economy # Retains economy ownership for Unique code redemption coordinated by this shop world.
 	_catalog = catalog # Retains the imported artwork catalogue.
@@ -44,6 +44,8 @@ func redeem_unique_code(code: String) -> String: # Redeems one exact case-sensit
 func show_reward(paths: PackedStringArray, animate_throw: bool) -> void: # Rebuilds a transient collection reward reveal while preserving each exact edition.
 	_clear_reveal() # Retires physical sheets belonging to the previous reveal.
 	_revealed_paths = paths.duplicate() # Keeps an independent transient copy of the collected edition identities.
+	if animate_throw and not _revealed_paths.is_empty(): # Treats only a newly committed gameplay reward as an achievement synchronization point, not empty setup or restored presentation.
+		SteamAchievements.sync_progress() # Re-evaluates collection, rarity, pack, Unique, duplicate, and premium-edition rules after authoritative ownership has already been persisted.
 	var global_targets: Array[Vector3] = [] # Aligns native result labels with the physical reveal anchors.
 	for index: int in range(_revealed_paths.size()): # Creates a separate sheet for each collected copy.
 		var sticker_key: String = _revealed_paths[index] # Reads this copy's exact inventory identity.
