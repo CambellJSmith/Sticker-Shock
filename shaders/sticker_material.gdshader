@@ -2,6 +2,7 @@ shader_type spatial;
 render_mode cull_disabled, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
 
 uniform sampler2D sticker_texture : source_color, filter_linear_mipmap_anisotropic, repeat_disable; // Supplies the complete printed sticker artwork and its authoritative alpha silhouette.
+uniform bool special_edition = false; // Switches only this exact physical copy into the shiny gold-metal front treatment.
 uniform vec4 adhesive_color : source_color = vec4(0.91, 0.89, 0.82, 1.0); // Supplies the paper-and-adhesive colour visible on the reverse.
 uniform vec2 grab_local = vec2(0.0); // Stores the local point where the sticker was grabbed.
 uniform vec2 drag_local = vec2(0.0); // Stores the local drag displacement driving the peel geometry.
@@ -148,21 +149,39 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 	float smudge_strength = smoothstep(0.57, 0.83, broad_smudge_noise) * mix(0.6, 1.0, smudge_detail_noise); // Combines broad and fine noise into soft oily-smudge zones reminiscent of fingerprints.
 	float micro_roughness = (micro_rough_noise - 0.5) * 0.10; // Converts the fine grain signal into a small signed roughness perturbation.
 	if (FRONT_FACING) { // Selects the printed front face when the artwork side is visible.
-		float fingerprint_gloss = smudge_strength * 0.18; // Makes oily-touch areas slightly glossier and smoother than untouched laminate.
-		float scuff_matte = scuff_strength * 0.08; // Adds a faint extra roughness lift for generalized rub wear.
-		vec3 front_albedo = artwork.rgb; // Uses the supplied sticker image directly without adding any generated colour or border.
-		front_albedo *= 1.0 - scratch_darkening; // Darkens deeper scratch channels more strongly while preserving the supplied artwork colours.
-		front_albedo += vec3(0.020, 0.017, 0.014) * scratch_edge; // Adds a restrained exposed-laminate catch along scratch shoulders so depth reads under soft light.
-		front_albedo += vec3(0.012) * fingerprint_gloss; // Gives smudged areas a faint cloudy lift that reads like natural skin-oil residue.
-		ALBEDO = clamp(front_albedo, vec3(0.0), vec3(1.0)); // Writes the final subtly weathered colour while guarding against tiny procedural overflow.
-		ROUGHNESS = clamp(mix(0.34, 0.40, peel_region) + micro_roughness + scratch_matte + scuff_matte - fingerprint_gloss, 0.05, 0.98); // Balances laminate, peel response, and realistic touch wear into one physically plausible roughness value.
-		SPECULAR = clamp(0.55 + fingerprint_gloss * 0.35 - scratch_specular_loss, 0.02, 0.95); // Lets smudges catch a little more highlight while deeper scratches break the laminate gloss.
+		if (special_edition) { // Gives special copies a physically metallic gold front while preserving the artwork through value structure.
+			float artwork_value = dot(artwork.rgb, vec3(0.299, 0.587, 0.114)); // Converts the original art into luminance so details remain readable after the gold material replacement.
+			vec3 dark_gold = vec3(0.18, 0.055, 0.004); // Defines the deep bronze-gold used by dark artwork regions.
+			vec3 bright_gold = vec3(1.0, 0.58, 0.055); // Defines the bright saturated metal colour used by light artwork regions.
+			vec3 gold_albedo = mix(dark_gold, bright_gold, smoothstep(0.05, 0.95, artwork_value)); // Maps the complete original value range into a readable gold-metal palette.
+			gold_albedo *= 1.0 - scratch_darkening * 0.35; // Preserves subtle physical wear without making the rare edition look dull.
+			gold_albedo += vec3(0.08, 0.045, 0.006) * scratch_edge; // Lets scratches catch warm metallic highlights.
+			ALBEDO = clamp(gold_albedo, vec3(0.0), vec3(1.0)); // Writes the gold base colour used by Godot's PBR metal response.
+			METALLIC = 1.0; // Makes the special front a true conductor-like metal surface rather than a yellow plastic tint.
+			ROUGHNESS = clamp(0.075 + micro_roughness * 0.20 + scratch_matte * 0.20 + scuff_strength * 0.025, 0.035, 0.22); // Keeps broad reflections very sharp while retaining tiny handling variation.
+			SPECULAR = 0.90; // Keeps the rare edition strongly reflective under the existing shop and book lighting.
+			EMISSION = gold_albedo * 0.018; // Adds only a tiny warm lift so gold details remain legible in darker parts of the scene without looking self-lit.
+		} else { // Preserves the established printed-laminate response for ordinary copies.
+			float fingerprint_gloss = smudge_strength * 0.18; // Makes oily-touch areas slightly glossier and smoother than untouched laminate.
+			float scuff_matte = scuff_strength * 0.08; // Adds a faint extra roughness lift for generalized rub wear.
+			vec3 front_albedo = artwork.rgb; // Uses the supplied sticker image directly without adding any generated colour or border.
+			front_albedo *= 1.0 - scratch_darkening; // Darkens deeper scratch channels more strongly while preserving the supplied artwork colours.
+			front_albedo += vec3(0.020, 0.017, 0.014) * scratch_edge; // Adds a restrained exposed-laminate catch along scratch shoulders so depth reads under soft light.
+			front_albedo += vec3(0.012) * fingerprint_gloss; // Gives smudged areas a faint cloudy lift that reads like natural skin-oil residue.
+			ALBEDO = clamp(front_albedo, vec3(0.0), vec3(1.0)); // Writes the final subtly weathered colour while guarding against tiny procedural overflow.
+			METALLIC = 0.0; // Keeps ordinary stickers as printed laminate rather than metal.
+			ROUGHNESS = clamp(mix(0.34, 0.40, peel_region) + micro_roughness + scratch_matte + scuff_matte - fingerprint_gloss, 0.05, 0.98); // Balances laminate, peel response, and realistic touch wear into one physically plausible roughness value.
+			SPECULAR = clamp(0.55 + fingerprint_gloss * 0.35 - scratch_specular_loss, 0.02, 0.95); // Lets smudges catch a little more highlight while deeper scratches break the laminate gloss.
+			EMISSION = vec3(0.0); // Keeps ordinary artwork fully dependent on scene lighting.
+		} // Completes normal-versus-special front material selection.
 	} else { // Selects the fibrous adhesive paper wherever the source artwork defines physical sticker material.
 		NORMAL = -NORMAL; // Flips the shading normal so the reverse side receives light correctly.
 		float paper_variation = 0.965 + 0.035 * sin(UV.x * 173.0 + UV.y * 229.0); // Adds a very small procedural paper variation without a second texture.
 		float fiber_noise = fbm(detail_uv * 95.0 + vec2(2.8, -4.4)); // Adds faint fibrous grain so the reverse side is not perfectly uniform.
 		ALBEDO = adhesive_color.rgb * paper_variation * (0.97 + 0.06 * fiber_noise); // Applies the warm adhesive-paper colour across the exact source-alpha silhouette.
+		METALLIC = 0.0; // Keeps the adhesive reverse as paper even when the printed front is a special gold edition.
 		ROUGHNESS = clamp(0.90 + (fiber_noise - 0.5) * 0.05, 0.0, 1.0); // Makes the sticker reverse substantially rougher than the printed face while adding slight tactile variation.
 		SPECULAR = 0.18; // Keeps only a weak broad reflection on the adhesive surface.
+		EMISSION = vec3(0.0); // Keeps the paper reverse fully lit by the scene.
 	} // Completes front-versus-back material selection.
 } // Completes sticker material shading.
