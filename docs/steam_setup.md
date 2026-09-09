@@ -10,14 +10,14 @@ The game now owns Steam initialization through the `SteamManager` autoload. Godo
 
 ```ini
 [steam]
-initialization/app_id=0
-initialization/initialize_on_startup=false
-initialization/embed_callbacks=false
+initialization/app_data/app_id=0
+initialization/processes/initialize_on_startup=false
+initialization/processes/embed_callbacks=false
 integration/require_steam=false
 integration/restart_through_steam=true
 ```
 
-Replace `initialization/app_id=0` with Sticker-Shock's real numeric Steam App ID before making a Steam build. The repository did not contain an App ID, so one has not been guessed or replaced with Spacewar's test ID.
+Replace `initialization/app_data/app_id=0` with Sticker-Shock's real numeric Steam App ID before making a Steam build. The repository did not contain an App ID, so one has not been guessed or replaced with Spacewar's test ID.
 
 `integration/restart_through_steam=true` makes exported builds use `Steam.restartAppIfNecessary()` when a real App ID is configured. Editor runs deliberately skip that restart so normal Godot development remains fast.
 
@@ -112,7 +112,7 @@ No Steam-hardware-specific gameplay branch is currently required because Sticker
 
 Before promoting a Steam build:
 
-1. Set the real `steam/initialization/app_id`.
+1. Set the real `steam/initialization/app_data/app_id`.
 2. Export from Godot and upload the complete export directory to the correct depot.
 3. Confirm the Steam launch option starts that executable.
 4. Launch from the Steam client and check the startup log for `Steam initialized` with the expected App ID and Steam ID.
