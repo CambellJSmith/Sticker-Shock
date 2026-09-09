@@ -18,9 +18,9 @@ var _elapsed: float = 0.0 # Stores reveal-animation time including the per-slot 
 var _base_yaw: float = 0.0 # Stores the settled in-plane orientation used as the idle rotation origin.
 var _phase: float = 0.0 # Stores a deterministic per-slot phase offset for independent shadow-height motion.
 
-func configure(pending_index: int, sticker_path: String, sticker_size: Vector2, sticker_texture: Texture2D, target_position: Vector3, special_edition: bool = false) -> void: # Builds one reveal result and applies this exact copy's normal-or-special material treatment.
+func configure(pending_index: int, sticker_key: String, sticker_size: Vector2, sticker_texture: Texture2D, target_position: Vector3) -> void: # Builds one reveal result and applies this exact copy's saved finish.
 	_pending_index = pending_index # Associates this reveal object with its deterministic result-order index.
-	_sticker_path = sticker_path # Stores the base artwork path for debugging and inspection.
+	_sticker_path = StickerVariant.get_art_path(sticker_key) # Stores the authored artwork path independently from the edition key.
 	_target_position = target_position # Stores the intended final display position in the shop presentation plane.
 	_start_position = Vector3(target_position.x * 0.18, 0.18, target_position.z + 1.65) # Starts all five stickers near the pack and lower on screen before they fan upward into view.
 	position = _start_position # Places the sticker at its launch point before the first animation frame.
@@ -30,7 +30,8 @@ func configure(pending_index: int, sticker_path: String, sticker_size: Vector2, 
 	_visual = StickerMesh.new() # Creates the same physical sticker surface used by attached book stickers.
 	_visual.name = "visual" # Gives the runtime component a readable tree name.
 	add_child(_visual) # Parents the visual under the reveal root so translation and in-plane rotation affect rendering together.
-	_visual.configure(sticker_size, sticker_texture, special_edition) # Builds the realistic sheet and gives rare special copies the shiny gold-metal front shader.
+	_visual.configure(sticker_size, sticker_texture, false) # Builds the realistic sheet without using the old boolean gold path.
+	StickerVariant.apply_material(_visual, sticker_key) # Applies normal, rainbow, silver, or gold from the exact pulled copy identity.
 	_collision_shape = CollisionShape3D.new() # Creates a simple physical picking volume for shop ray queries.
 	_collision_shape.name = "pick_shape" # Gives the interaction component a readable runtime name.
 	var box_shape: BoxShape3D = BoxShape3D.new() # Creates a thin box matching the complete artwork bounds.
