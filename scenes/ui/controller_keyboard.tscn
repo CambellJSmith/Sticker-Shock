@@ -1,0 +1,121 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/controller_keyboard.gd" id="1_keyboard"]
+[ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2_button"]
+
+[node name="controller_keyboard" type="Control"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+mouse_filter = 0
+script = ExtResource("1_keyboard")
+unique_name_in_owner = true
+
+[node name="dimmer" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.023, 0.03, 0.88)
+mouse_filter = 0
+
+[node name="center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="panel" type="PanelContainer" parent="center"]
+custom_minimum_size = Vector2(760, 0)
+
+[node name="content" type="VBoxContainer" parent="center/panel"]
+theme_override_constants/separation = 12
+
+[node name="eyebrow" type="Label" parent="center/panel/content"]
+text = "CONTROLLER TEXT ENTRY"
+mouse_filter = 2
+theme_type_variation = "AccentLabel"
+
+[node name="title" type="Label" parent="center/panel/content"]
+text = "type with your controller"
+mouse_filter = 2
+theme_type_variation = "HeadingLabel"
+
+[node name="hint" type="Label" parent="center/panel/content"]
+text = "left stick / d-pad move · A select · B cancel"
+mouse_filter = 2
+theme_type_variation = "MutedLabel"
+
+[node name="preview_panel" type="PanelContainer" parent="center/panel/content"]
+custom_minimum_size = Vector2(0, 52)
+
+[node name="preview" type="Label" parent="center/panel/content/preview_panel"]
+text = " "
+mouse_filter = 2
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 20
+unique_name_in_owner = true
+
+[node name="key_rows" type="VBoxContainer" parent="center/panel/content"]
+theme_override_constants/separation = 6
+unique_name_in_owner = true
+
+[node name="actions" type="HBoxContainer" parent="center/panel/content"]
+theme_override_constants/separation = 7
+alignment = 1
+
+[node name="shift" type="Button" parent="center/panel/content/actions"]
+text = "letters: ABC"
+script = ExtResource("2_button")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(116, 46)
+unique_name_in_owner = true
+
+[node name="space" type="Button" parent="center/panel/content/actions"]
+text = "space"
+script = ExtResource("2_button")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(82, 46)
+unique_name_in_owner = true
+
+[node name="backspace" type="Button" parent="center/panel/content/actions"]
+text = "backspace"
+script = ExtResource("2_button")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(110, 46)
+unique_name_in_owner = true
+
+[node name="clear" type="Button" parent="center/panel/content/actions"]
+text = "clear"
+script = ExtResource("2_button")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(72, 46)
+unique_name_in_owner = true
+
+[node name="cancel" type="Button" parent="center/panel/content/actions"]
+text = "cancel"
+script = ExtResource("2_button")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+custom_minimum_size = Vector2(82, 46)
+unique_name_in_owner = true
+
+[node name="done" type="Button" parent="center/panel/content/actions"]
+text = "done"
+script = ExtResource("2_button")
+mouse_default_cursor_shape = 2
+theme_type_variation = "PrimaryButton"
+custom_minimum_size = Vector2(82, 46)
+unique_name_in_owner = true

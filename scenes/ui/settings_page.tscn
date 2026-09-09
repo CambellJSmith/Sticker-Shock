@@ -4,7 +4,6 @@
 [ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/left.svg" id="3"]
 
-
 [node name="settings_page" type="MarginContainer"]
 layout_mode = 1
 anchors_preset = 15
@@ -37,7 +36,6 @@ mouse_filter = 2
 theme_type_variation = "MutedLabel"
 
 [node name="display" type="PanelContainer" parent="scroll/content"]
-
 
 [node name="rows" type="VBoxContainer" parent="scroll/content/display"]
 theme_override_constants/separation = 16
@@ -101,12 +99,11 @@ unique_name_in_owner = true
 
 [node name="controls" type="PanelContainer" parent="scroll/content"]
 
-
 [node name="rows" type="VBoxContainer" parent="scroll/content/controls"]
 theme_override_constants/separation = 12
 
 [node name="controls_title" type="Label" parent="scroll/content/controls/rows"]
-text = "at your desk"
+text = "controller"
 mouse_filter = 2
 theme_type_variation = "AccentLabel"
 
@@ -114,12 +111,12 @@ theme_type_variation = "AccentLabel"
 theme_override_constants/separation = 24
 
 [node name="input" type="Label" parent="scroll/content/controls/rows/inspect"]
-text = "click a sticker"
+text = "right stick + X"
 mouse_filter = 2
 custom_minimum_size = Vector2(220, 0)
 
 [node name="action" type="Label" parent="scroll/content/controls/rows/inspect"]
-text = "inspect it up close"
+text = "aim at a book sticker · tap X to inspect"
 mouse_filter = 2
 size_flags_horizontal = 3
 autowrap_mode = 2
@@ -129,12 +126,27 @@ theme_type_variation = "MutedLabel"
 theme_override_constants/separation = 24
 
 [node name="input" type="Label" parent="scroll/content/controls/rows/peel"]
-text = "drag a sticker"
+text = "hold X + right stick"
 mouse_filter = 2
 custom_minimum_size = Vector2(220, 0)
 
 [node name="action" type="Label" parent="scroll/content/controls/rows/peel"]
-text = "peel, move, and restick"
+text = "peel, move, and restick · release X to place"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="place" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/place"]
+text = "right stick · X"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/place"]
+text = "position a collection sticker in the book · X places it"
 mouse_filter = 2
 size_flags_horizontal = 3
 autowrap_mode = 2
@@ -144,12 +156,12 @@ theme_type_variation = "MutedLabel"
 theme_override_constants/separation = 24
 
 [node name="input" type="Label" parent="scroll/content/controls/rows/rotate"]
-text = "drag in inspection"
+text = "right stick · LB / RB"
 mouse_filter = 2
 custom_minimum_size = Vector2(220, 0)
 
 [node name="action" type="Label" parent="scroll/content/controls/rows/rotate"]
-text = "rotate freely · right drag to roll"
+text = "rotate freely in inspection · shoulders roll"
 mouse_filter = 2
 size_flags_horizontal = 3
 autowrap_mode = 2
@@ -159,27 +171,12 @@ theme_type_variation = "MutedLabel"
 theme_override_constants/separation = 24
 
 [node name="input" type="Label" parent="scroll/content/controls/rows/zoom"]
-text = "mouse wheel"
+text = "X / Y · R3"
 mouse_filter = 2
 custom_minimum_size = Vector2(220, 0)
 
 [node name="action" type="Label" parent="scroll/content/controls/rows/zoom"]
-text = "zoom in inspection"
-mouse_filter = 2
-size_flags_horizontal = 3
-autowrap_mode = 2
-theme_type_variation = "MutedLabel"
-
-[node name="reset" type="HBoxContainer" parent="scroll/content/controls/rows"]
-theme_override_constants/separation = 24
-
-[node name="input" type="Label" parent="scroll/content/controls/rows/reset"]
-text = "r / q / e"
-mouse_filter = 2
-custom_minimum_size = Vector2(220, 0)
-
-[node name="action" type="Label" parent="scroll/content/controls/rows/reset"]
-text = "reset view / roll left / roll right"
+text = "zoom out / zoom in · reset inspection view"
 mouse_filter = 2
 size_flags_horizontal = 3
 autowrap_mode = 2
@@ -189,12 +186,42 @@ theme_type_variation = "MutedLabel"
 theme_override_constants/separation = 24
 
 [node name="input" type="Label" parent="scroll/content/controls/rows/nav"]
-text = "tab / arrows / a"
+text = "left stick / d-pad · A"
 mouse_filter = 2
 custom_minimum_size = Vector2(220, 0)
 
 [node name="action" type="Label" parent="scroll/content/controls/rows/nav"]
-text = "navigate menus / confirm"
+text = "navigate every menu and list · confirm focused actions"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="text_entry" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/text_entry"]
+text = "A on a text field"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/text_entry"]
+text = "open the in-game controller keyboard for search or Unique codes"
+mouse_filter = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+theme_type_variation = "MutedLabel"
+
+[node name="selectors" type="HBoxContainer" parent="scroll/content/controls/rows"]
+theme_override_constants/separation = 24
+
+[node name="input" type="Label" parent="scroll/content/controls/rows/selectors"]
+text = "left / right on selector"
+mouse_filter = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="action" type="Label" parent="scroll/content/controls/rows/selectors"]
+text = "change pack selection · A advances to the next option"
 mouse_filter = 2
 size_flags_horizontal = 3
 autowrap_mode = 2
@@ -204,19 +231,19 @@ theme_type_variation = "MutedLabel"
 theme_override_constants/separation = 24
 
 [node name="input" type="Label" parent="scroll/content/controls/rows/pause"]
-text = "esc / start / b"
+text = "B / Start"
 mouse_filter = 2
 custom_minimum_size = Vector2(220, 0)
 
 [node name="action" type="Label" parent="scroll/content/controls/rows/pause"]
-text = "pause, go back, or close inspection"
+text = "go back / cancel · Start pauses during gameplay"
 mouse_filter = 2
 size_flags_horizontal = 3
 autowrap_mode = 2
 theme_type_variation = "MutedLabel"
 
 [node name="pointer_note" type="Label" parent="scroll/content"]
-text = "sticker placement and peeling use the mouse."
+text = "Every in-game feature can be completed with a controller; mouse and keyboard remain fully supported."
 mouse_filter = 2
 theme_type_variation = "MutedLabel"
 
