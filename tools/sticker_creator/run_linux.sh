@@ -16,4 +16,4 @@ if ! "$PYTHON_BIN" -c "from PIL import Image" >/dev/null 2>&1; then
     "$PYTHON_BIN" -m pip install -r "$SCRIPT_DIR/requirements.txt"
 fi
 
-exec "$PYTHON_BIN" "$SCRIPT_DIR/sticker_creator.py"
+exec "$PYTHON_BIN" "$SCRIPT_DIR/sticker_creator_entry.py"
