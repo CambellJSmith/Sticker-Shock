@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" path="res://scripts/ui/removable_sticker_inspection.gd" id="1_script"]
 [ext_resource type="Script" path="res://scripts/sticker_mesh.gd" id="2_sticker_mesh"]
-
 [ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="3_button"]
+
 [node name="sticker_inspection" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -22,7 +22,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.012, 0.015, 0.02, 0.90)
+color = Color(0.012, 0.015, 0.02, 0.94)
 mouse_filter = 0
 
 [node name="top_bar" type="PanelContainer" parent="."]
@@ -30,10 +30,10 @@ layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
 grow_horizontal = 2
-offset_left = 28.0
-offset_top = 22.0
-offset_right = -28.0
-offset_bottom = 82.0
+offset_left = 24.0
+offset_top = 18.0
+offset_right = -24.0
+offset_bottom = 76.0
 
 [node name="content" type="HBoxContainer" parent="top_bar"]
 layout_mode = 2
@@ -43,8 +43,18 @@ theme_override_constants/separation = 12
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.94, 0.95, 0.97, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 text = "sticker"
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="edition_badge" type="Label" parent="top_bar/content"]
+layout_mode = 2
+size_flags_vertical = 4
+custom_minimum_size = Vector2(110, 34)
+theme_override_colors/font_color = Color(0.82, 0.85, 0.9, 1)
+text = "normal"
+horizontal_alignment = 1
 vertical_alignment = 1
 mouse_filter = 2
 
@@ -63,10 +73,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-offset_left = 28.0
-offset_top = 94.0
-offset_right = -28.0
-offset_bottom = -92.0
+offset_left = 24.0
+offset_top = 88.0
+offset_right = -390.0
+offset_bottom = -86.0
 clip_contents = true
 mouse_filter = 0
 
@@ -119,6 +129,99 @@ rotation_degrees = Vector3(-112, 152, 0)
 light_energy = 0.42
 shadow_enabled = false
 
+[node name="details_panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -374.0
+offset_top = 88.0
+offset_right = -24.0
+offset_bottom = -86.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="margin" type="MarginContainer" parent="details_panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="scroll" type="ScrollContainer" parent="details_panel/margin"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="details" type="VBoxContainer" parent="details_panel/margin/scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 9
+
+[node name="section_title" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.76, 0.83, 1)
+theme_override_font_sizes/font_size = 12
+text = "STICKER DETAILS"
+mouse_filter = 2
+
+[node name="market_value" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.97, 0.99, 1)
+theme_override_font_sizes/font_size = 30
+text = "£0"
+mouse_filter = 2
+
+[node name="market_caption" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+text = "current collector exchange value"
+mouse_filter = 2
+
+[node name="separator_a" type="HSeparator" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+
+[node name="id_label" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+text = "ID  —"
+mouse_filter = 2
+
+[node name="rarity_label" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+text = "RARITY  —"
+mouse_filter = 2
+
+[node name="edition_label" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+text = "EDITION  —"
+mouse_filter = 2
+
+[node name="pack_label" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+text = "PACK  —"
+mouse_filter = 2
+
+[node name="artist_label" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+text = "ARTIST  —"
+mouse_filter = 2
+
+[node name="separator_b" type="HSeparator" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+
+[node name="description_heading" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.76, 0.83, 1)
+theme_override_font_sizes/font_size = 12
+text = "DESCRIPTION"
+mouse_filter = 2
+
+[node name="description" type="Label" parent="details_panel/margin/scroll/details"]
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+text = "No description set."
+mouse_filter = 2
+
 [node name="bottom_bar" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 12
@@ -127,19 +230,19 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 0
-offset_left = 28.0
-offset_top = -76.0
-offset_right = -28.0
-offset_bottom = -22.0
+offset_left = 24.0
+offset_top = -70.0
+offset_right = -24.0
+offset_bottom = -18.0
 theme_override_constants/separation = 10
 alignment = 1
 
 [node name="hint" type="Label" parent="bottom_bar"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 0)
+size_flags_horizontal = 3
 autowrap_mode = 2
 theme_override_colors/font_color = Color(0.62, 0.66, 0.72, 1)
-text = "drag to rotate · right drag to roll\nwheel to zoom · r to reset · esc to close"
+text = "drag to rotate · right drag to roll · wheel to zoom · r to reset"
 vertical_alignment = 1
 mouse_filter = 2
 
