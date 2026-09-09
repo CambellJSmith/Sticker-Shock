@@ -6,7 +6,7 @@ extends PanelContainer
 @onready var _rarity_label: Label = %rarity as Label # Shows the authored rarity used by the base-value model.
 @onready var _owned_label: Label = %owned as Label # Shows how many unstuck copies can currently be sold.
 @onready var _trend_label: Label = %trend as Label # Shows the persistent bullish, bearish, or sideways market regime and recent move.
-@onready var _price_label: Label = %price as Label # Shows the current whole-coin collector bid for one copy.
+@onready var _price_label: Label = %price as Label # Shows the current pound collector bid for one copy.
 @onready var _chart_button: GameButton = %chart_button as GameButton # Opens this exact edition in the shared live market graph.
 @onready var _sell_button: GameButton = %sell_button as GameButton # Sells exactly one available copy through the authoritative controller.
 
@@ -40,14 +40,14 @@ func refresh() -> void: # Updates only lightweight market and ownership fields f
 	var direction: int = _market.get_trend_direction(_sticker_key, _catalog) # Reads the persistent trend regime rather than inferring direction from one noisy tick.
 	var recent_change: float = _market.get_recent_change_percent(_sticker_key, _catalog) # Reads the latest realized quote movement for additional market context.
 	_owned_label.text = "%d available" % available # Shows exactly how many copies can be sold from collection inventory.
-	_price_label.text = "%d coins" % price # Displays the live one-copy sale value in the game's existing currency.
+	_price_label.text = "£%d" % price # Displays the live one-copy sale value in pounds.
 	if direction > 0: # Presents a persistent bullish market regime.
 		_trend_label.text = "▲ rising · %+.1f%% last move" % recent_change # Combines direction and noisy recent movement without implying guaranteed future value.
 	elif direction < 0: # Presents a persistent bearish market regime.
 		_trend_label.text = "▼ falling · %+.1f%% last move" % recent_change # Makes ongoing downward momentum visible for speculative timing.
 	else: # Presents a sideways regime dominated by short-term collector noise.
 		_trend_label.text = "• steady · %+.1f%% last move" % recent_change # Shows recent volatility even while no directional drift is active.
-	_sell_button.text = "sell one · %d" % price # Keeps the exact transaction value visible on the action itself.
+	_sell_button.text = "sell one · £%d" % price # Keeps the exact transaction value visible on the action itself.
 	_sell_button.disabled = available <= 0 # Prevents UI activation when every owned copy is already in the book or otherwise unavailable.
 
 func get_sticker_key() -> String: # Exposes the immutable row identity to the market HUD cache.

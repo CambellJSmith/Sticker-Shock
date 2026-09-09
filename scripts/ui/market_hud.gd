@@ -106,7 +106,7 @@ func _refresh_selected_chart() -> void: # Synchronizes the shared graph with the
 	var base_name: String = _catalog.get_display_name(_selected_chart_key) # Reads the authored sticker name for the graph heading.
 	var edition_name: String = StickerVariant.get_edition_name(_selected_chart_key) # Reads the exact per-copy finish represented by the selected market key.
 	_chart_title.text = "%s · %s" % [base_name, edition_name] # Shows a concise stock-style instrument name.
-	_chart_price.text = "%d coins" % _market.get_price(_selected_chart_key, _catalog) # Shows the current tradable quote beside the graph.
+	_chart_price.text = "£%d" % _market.get_price(_selected_chart_key, _catalog) # Shows the current tradable quote beside the graph in pounds.
 	if _market is EditionStickerMarket: # Uses the live-edition market's chart history API when available.
 		var live_market: EditionStickerMarket = _market as EditionStickerMarket # Narrows the configured market to its live implementation.
 		_chart.set_prices(live_market.get_price_history(_selected_chart_key, _catalog)) # Sends only the compact thirty-minute series to the drawing control.

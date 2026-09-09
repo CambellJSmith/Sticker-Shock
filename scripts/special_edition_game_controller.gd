@@ -74,12 +74,12 @@ func sell_market_sticker(sticker_key: String) -> int: # Sells one loose exact-ed
 	_market.advance_to_now(_catalog) # Publishes any overdue real-world market tick before locking the sale price.
 	var sale_price: int = _market.get_price(sticker_key, _catalog) # Reads the exact current edition-aware bid after the latest market advancement.
 	var special_economy: GuaranteedSpecialStickerEconomy = _economy as GuaranteedSpecialStickerEconomy # Narrows the configured edition-aware economy for its atomic sale transaction.
-	if special_economy == null or not special_economy.sell_owned_copy(sticker_key, sale_price): # Atomically validates ownership, removes one exact edition, credits coins, and saves progression.
+	if special_economy == null or not special_economy.sell_owned_copy(sticker_key, sale_price): # Atomically validates ownership, removes one exact edition, credits currency, and saves progression.
 		return 0 # Reports no sale if persistent inventory changed before the transaction could commit.
 	if _market_world != null: # Refreshes the active exchange immediately after successful inventory mutation.
 		_market_world.get_ui().refresh() # Updates remaining sellable copies while keeping the current market quote unchanged.
-	_game_ui.notify_progress_changed() # Refreshes shared coin balance, collection state, and title-screen progression after the completed sale.
-	_game_ui.show_toast("sold %s for %d coins" % [_catalog.get_display_name(sticker_key), sale_price]) # Gives concise transaction feedback without interrupting the market world.
+	_game_ui.notify_progress_changed() # Refreshes shared currency balance, collection state, and title-screen progression after the completed sale.
+	_game_ui.show_toast("sold %s for £%d" % [_catalog.get_display_name(sticker_key), sale_price]) # Gives concise pound-denominated transaction feedback without interrupting the market world.
 	return sale_price # Returns the committed proceeds for callers that need explicit transaction confirmation.
 
 func show_sticker_inspection(sticker_key: String) -> bool: # Opens a normal, rainbow, silver, or gold book sticker while preserving its exact material in the isolated inspector.

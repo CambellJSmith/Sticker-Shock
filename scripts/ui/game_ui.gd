@@ -107,7 +107,7 @@ func blocks_world_input() -> bool: # Reports exclusive UI ownership to physical 
 func notify_progress_changed() -> void: # Updates progression only when authoritative models actually change.
 	if _economy == null: # Handles early initialization safely.
 		return # Defers presentation until dependencies are bound.
-	(%currency as Label).text = "%d coins" % _economy.get_currency() # Keeps one currency display in the persistent shell.
+	(%currency as Label).text = "£%d" % _economy.get_currency() # Keeps one pound-denominated currency display in the persistent shell.
 	var pending: int = _book_state.get_pending_count() # Reads the one currently reserved collection copy, if any.
 	(%pending as Label).text = "%d to place" % pending if pending > 0 else "" # Shows only actionable manual-placement progress.
 	if _collection.is_visible_in_tree(): # Avoids collection work outside its active page.
