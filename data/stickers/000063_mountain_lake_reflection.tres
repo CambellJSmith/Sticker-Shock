@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StickerDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/sticker_definition.gd" id="1_definition"]
+[ext_resource type="Texture2D" path="res://assets/stickers/art/000063_mountain_lake_reflection.png" id="2_art"]
+
+[resource]
+script = ExtResource("1_definition")
+id = 63
+name = "Mountain Lake Reflection"
+art = ExtResource("2_art")
+description = ""
+pack = "Base"
+artist = "Cambell"
+rarity = "Elite"
