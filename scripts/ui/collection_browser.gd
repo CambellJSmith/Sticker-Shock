@@ -15,7 +15,7 @@ var _economy: StickerEconomy # Reads current edition-aware ownership without mod
 var _catalog: StickerCatalog # Supplies discovered authored sticker resources.
 var _place: Callable = Callable() # Starts book placement for one available collected edition copy.
 var _available_count: Callable = Callable() # Reports how many copies of an exact edition remain available to place.
-var _cards: Array[CollectionItem] = [] # Keeps instantiated owned sticker cards cached across route changes.
+var _cards: Array[CollectionItem] = [] # Keeps instantiated owned-collection cards cached across route changes.
 var _card_keys: Dictionary[String, bool] = {} # Prevents duplicate card construction when ownership changes.
 var _filters: Array[GameButton] = [] # Retains references to legacy ownership filter controls so they can stay hidden.
 var _query: String = "" # Caches the last applied normalized search query.
@@ -63,8 +63,16 @@ func _ensure_card(sticker_key: String) -> void: # Builds one currently owned nor
 	_cards.append(card) # Retains the card for future ownership refreshes.
 	_card_keys[sticker_key] = true # Records successful construction so later refreshes remain allocation-free.
 
-func focus_search() -> void: # Establishes a useful focus target on collection entry.
-	_search.grab_focus() # Makes collection search immediately available from the keyboard.
+func focus_search() -> void: # Establishes the keyboard/mouse-oriented collection entry target.
+	_search.grab_focus() # Makes native collection search immediately available from a physical keyboard.
+
+func focus_controller() -> void: # Establishes a controller-native entry target without trapping focus inside the native LineEdit.
+	if _focus_first_actionable_card(): # Prioritizes the first visible sticker copy that can actually be placed.
+		return # Leaves focus on useful collection content instead of controller text entry.
+	if _empty.visible: # Handles an active search with no matching owned results.
+		(%clear_filter as GameButton).grab_focus() # Gives the controller an immediate way to restore the full collection.
+		return # Keeps focus away from hidden grid content.
+	_search.grab_focus() # Falls back to controller-accessible search, where A opens the in-game on-screen keyboard.
 
 func _process(delta: float) -> void: # Watches text and available width only while the collection browser is visible.
 	if not is_visible_in_tree() or _economy == null: # Avoids hidden-page polling and premature model reads.
@@ -81,11 +89,12 @@ func _process(delta: float) -> void: # Watches text and available width only whi
 	if _grid.columns != columns: # Avoids unnecessary container layout invalidations.
 		_grid.columns = columns # Adapts the grid to the actual content width.
 
-func _clear_search() -> void: # Recovers from an empty ownership search result.
+func _clear_search() -> void: # Recovers from an empty ownership search result for mouse, keyboard, and controller users.
 	_search.text = "" # Clears native editable search text.
 	_query = "" # Clears the cached normalized query immediately.
 	_apply_filter() # Restores every currently owned sticker edition.
-	_search.grab_focus() # Returns focus to a useful editing target.
+	if not _focus_first_actionable_card(): # Prefers restored collection content when at least one copy can be placed.
+		_search.grab_focus() # Falls back to the text field only when no actionable card exists.
 
 func _apply_filter() -> void: # Applies text search while always excluding unowned sticker editions.
 	var shown: int = 0 # Counts the currently visible owned results.
@@ -97,3 +106,10 @@ func _apply_filter() -> void: # Applies text search while always excluding unown
 	_empty.visible = shown == 0 # Shows recovery guidance only when no owned result matches.
 	_scroll.visible = shown > 0 # Gives empty-state content the available page area when appropriate.
 	_summary.text = "%d owned sticker editions" % shown # Describes the actual ownership-only result set.
+
+func _focus_first_actionable_card() -> bool: # Selects the first visible enabled collection card and reports whether one was found.
+	for card: CollectionItem in _cards: # Searches cached cards in stable creation/catalogue order.
+		if card.visible and not card.disabled: # Requires both the active search result and at least one loose copy available to place.
+			card.grab_focus() # Gives controller users an immediately useful physical-placement action.
+			return true # Stops after establishing one deterministic entry target.
+	return false # Reports that collection content currently has no actionable placement card.
