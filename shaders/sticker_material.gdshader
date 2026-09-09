@@ -58,7 +58,7 @@ vec2 rotate_surface_space(vec2 coordinate, float angle) { // Rotates one indepen
 
 vec2 rotate_detail_uv(vec2 uv, float angle) { // Rotates the procedural surface-detail space around the sticker center without affecting artwork placement.
 	float sine_value = sin(angle); // Caches the detail-space sine once for efficient coordinate rotation.
-	float cosine_value = cos(angle); // Caches the detail-space cosine once for efficient coordinate rotation.
+	float cosine_value = cos(angle); // Caches the detail-space cosine once for the coordinate rotation.
 	vec2 centered_uv = uv - vec2(0.5); // Moves the UV origin to sticker center before rotation.
 	vec2 rotated_uv = vec2(centered_uv.x * cosine_value - centered_uv.y * sine_value, centered_uv.x * sine_value + centered_uv.y * cosine_value); // Applies a standard 2D rotation to the centered detail-space coordinate.
 	return rotated_uv + vec2(0.5) + surface_detail_offset; // Restores center-relative coordinates and adds the per-copy offset used to vary wear patterns.
@@ -149,18 +149,29 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 	float smudge_strength = smoothstep(0.57, 0.83, broad_smudge_noise) * mix(0.6, 1.0, smudge_detail_noise); // Combines broad and fine noise into soft oily-smudge zones reminiscent of fingerprints.
 	float micro_roughness = (micro_rough_noise - 0.5) * 0.10; // Converts the fine grain signal into a small signed roughness perturbation.
 	if (FRONT_FACING) { // Selects the printed front face when the artwork side is visible.
-		if (special_edition) { // Gives special copies a glossy gold-metal front while retaining enough diffuse response to remain readable under compatibility lighting.
+		if (special_edition) { // Gives special copies a glossy gold-metal front with a recurring premium light sweep.
 			float artwork_value = dot(artwork.rgb, vec3(0.299, 0.587, 0.114)); // Converts the original art into luminance so details remain readable after the gold material replacement.
 			vec3 dark_gold = vec3(0.34, 0.12, 0.015); // Keeps dark artwork regions visibly bronze-gold instead of collapsing toward black.
 			vec3 bright_gold = vec3(1.0, 0.72, 0.16); // Gives light artwork regions a bright warm polished-gold response.
 			vec3 gold_albedo = mix(dark_gold, bright_gold, smoothstep(0.03, 0.97, artwork_value)); // Maps the complete original value range into a readable gold palette.
 			gold_albedo *= 1.0 - scratch_darkening * 0.24; // Preserves subtle physical wear without crushing shadow values.
 			gold_albedo += vec3(0.10, 0.055, 0.010) * scratch_edge; // Lets scratches catch warm metallic highlights.
-			ALBEDO = clamp(gold_albedo, vec3(0.0), vec3(1.0)); // Writes the gold base colour used by Godot's combined diffuse and metal response.
+			float shimmer_cycle = mod(TIME, 4.4); // Creates one repeatable premium sweep followed by a short resting interval before the next pass.
+			float shimmer_active = 1.0 - step(1.35, shimmer_cycle); // Keeps the artificial streak visible only during the opening part of each cycle.
+			float shimmer_progress = clamp(shimmer_cycle / 1.35, 0.0, 1.0); // Converts the active sweep time into a stable zero-to-one travel amount.
+			float shimmer_axis = UV.x + UV.y * 0.55; // Tilts the streak diagonally so it reads as a moving light reflection across the sticker face.
+			float shimmer_position = mix(-0.28, 1.83, shimmer_progress); // Moves the streak fully from outside one edge to beyond the opposite edge.
+			float shimmer_distance = abs(shimmer_axis - shimmer_position); // Measures each fragment's distance from the moving diagonal light centre.
+			float shimmer_core = (1.0 - smoothstep(0.0, 0.035, shimmer_distance)) * shimmer_active; // Builds the narrow bright white-gold centre line.
+			float shimmer_halo = (1.0 - smoothstep(0.025, 0.16, shimmer_distance)) * shimmer_active; // Builds a broader warm glow around the premium streak.
+			float shimmer_strength = clamp(shimmer_core + shimmer_halo * 0.58, 0.0, 1.0); // Combines core and halo into one bounded material response.
+			gold_albedo += vec3(0.34, 0.19, 0.035) * shimmer_halo; // Warms the gold beneath the passing halo before the brightest centre arrives.
+			gold_albedo += vec3(0.58, 0.50, 0.34) * shimmer_core; // Adds a strong near-white premium highlight through the centre of the sweep.
+			ALBEDO = clamp(gold_albedo, vec3(0.0), vec3(1.0)); // Writes the animated gold base colour used by Godot's combined diffuse and metal response.
 			METALLIC = 0.68; // Keeps the surface convincingly metallic while retaining enough diffuse energy for the compatibility renderer and flat scene lighting.
-			ROUGHNESS = clamp(0.16 + micro_roughness * 0.18 + scratch_matte * 0.18 + scuff_strength * 0.035, 0.10, 0.34); // Produces broad readable highlights instead of reflection-only black regions.
-			SPECULAR = 0.88; // Keeps strong polished highlights under direct shop, book, and inspection lights.
-			EMISSION = gold_albedo * 0.075; // Provides a restrained illumination-independent gold floor so the material never becomes visually black in weak reflection environments.
+			ROUGHNESS = clamp(0.16 + micro_roughness * 0.18 + scratch_matte * 0.18 + scuff_strength * 0.035 - shimmer_strength * 0.10, 0.045, 0.34); // Temporarily polishes the material under the moving streak so the sweep catches sharper scene highlights too.
+			SPECULAR = clamp(0.88 + shimmer_strength * 0.10, 0.0, 1.0); // Reinforces the artificial glint with a brief stronger specular response under its centre and halo.
+			EMISSION = gold_albedo * 0.075 + vec3(1.0, 0.78, 0.34) * (shimmer_halo * 0.18 + shimmer_core * 0.52); // Makes the streak clearly visible in every scene while retaining the established nonblack gold floor.
 		} else { // Preserves the established printed-laminate response for ordinary copies.
 			float fingerprint_gloss = smudge_strength * 0.18; // Makes oily-touch areas slightly glossier and smoother than untouched laminate.
 			float scuff_matte = scuff_strength * 0.08; // Adds a faint extra roughness lift for generalized rub wear.
