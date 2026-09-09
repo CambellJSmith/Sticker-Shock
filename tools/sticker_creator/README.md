@@ -52,6 +52,8 @@ Preview work runs on a background worker with debounced updates and cached cut g
 
 Individual imports and replacement artwork use the same processing function as batch import. The batch dialog includes its own colour, width, smoothing, and preview controls. Its artwork selector lets you inspect each image before applying one frozen recipe to the entire batch. Width and smoothing are measured in each source image's pixels, so the same pixel width appears proportionally thinner on higher-resolution images.
 
+The existing-sticker list follows the pack selected in the left metadata panel. Select a pack to show only its stickers; clear the selection to show every sticker again. The form's pack dropdown still controls the pack saved for a new or edited sticker.
+
 Editing an authored sticker restores its original artwork and border settings. Changing colour or width renders a fresh border; metadata-only edits reuse an already-current exported PNG without recompressing it. Older authoring records are rendered once with the binary alpha rule on their next edit. Original artwork and recipes use stable numeric filenames, so renaming a sticker does not lose them. Selecting an already-generated tool PNG resolves its preserved original instead of adding another border over the existing one.
 
 Older stickers without authoring records open with width 0. Saving one through the tool archives its existing pixels as the original and writes a cleaned binary-alpha runtime PNG; increasing its width also creates a border from those archived source pixels. Previously baked borders cannot be removed automatically; select the unbordered source image when replacing that artwork.
