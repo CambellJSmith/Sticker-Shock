@@ -12,7 +12,10 @@ func _ready() -> void: # Prepares asynchronous achievement persistence after Ste
 	process_mode = Node.PROCESS_MODE_ALWAYS # Keeps pending Steam progress available while gameplay is paused or switching physical worlds.
 	set_process(false) # Avoids per-frame work until an earned achievement actually needs a retry.
 	if SteamManager.is_available(): # Requests the local user's Steam stats only when the base Steam session initialized successfully.
+		_debug_print("requesting user stats for steam_id=%d" % SteamManager.get_steam_id()) # Confirms the stats request is reached during editor testing before any achievement mutation is attempted.
 		Steam.requestUserStats(SteamManager.get_steam_id()) # Starts the asynchronous user-stats load required before Steam can reliably accept achievement writes.
+	else: # Distinguishes an unavailable Steam session from later stats or achievement failures in debug output.
+		_debug_print("Steam unavailable during achievement startup") # Makes a skipped stats request visible without changing standalone-development behavior.
 
 func _process(delta: float) -> void: # Retries an earned achievement until Steam's asynchronous stats state accepts and stores it or the bounded retry window expires.
 	if not _first_sticker_pending or not SteamManager.is_available(): # Stops retry work when nothing is earned or the current process has no live Steam session.
@@ -28,6 +31,7 @@ func _process(delta: float) -> void: # Retries an earned achievement until Steam
 		set_process(false) # Stops native retry traffic for the rest of this session while startup reconciliation preserves a future-launch retry path.
 
 func sync_first_sticker(total_owned_count: int) -> void: # Reconciles persisted or newly granted ownership with the first-sticker Steam achievement.
+	_debug_print("sync api=%s total_owned_count=%d steam_available=%s" % [String(FIRST_STICKER), total_owned_count, str(SteamManager.is_available())]) # Confirms whether startup reconciliation or the zero-to-one acquisition hook actually reached the achievement subsystem.
 	if total_owned_count <= 0: # Requires at least one actual collected sticker copy before earning the achievement.
 		return # Leaves the achievement untouched for a genuinely empty collection.
 	_first_sticker_pending = true # Records the earned condition independently from whether Steam stats are ready this exact frame.
@@ -43,8 +47,16 @@ func _attempt_first_sticker_unlock() -> bool: # Attempts one idempotent Steam un
 	if not _first_sticker_pending or not SteamManager.is_available(): # Rejects calls without an earned condition or a live Steam API session.
 		return false # Reports that no Steam transaction completed.
 	_retry_attempt_count += 1 # Counts every actual Steamworks attempt before evaluating whether it succeeded.
+	_debug_print("attempt api=%s number=%d" % [String(FIRST_STICKER), _retry_attempt_count]) # Correlates each retry with the detailed SteamProgress native-call diagnostics.
 	if not SteamProgress.unlock_achievement(FIRST_STICKER): # Uses the existing guarded helper so setAchievement and storeStats remain centralized.
+		_debug_print("attempt failed api=%s number=%d" % [String(FIRST_STICKER), _retry_attempt_count]) # Makes a failed transaction explicit before the bounded retry loop schedules another attempt.
 		return false # Keeps the earned achievement pending for a later stats-ready retry.
 	_first_sticker_pending = false # Clears local pending state only after Steam accepted and stored the achievement.
 	set_process(false) # Stops all retry work immediately after the successful backend commit.
+	_debug_print("attempt succeeded api=%s number=%d" % [String(FIRST_STICKER), _retry_attempt_count]) # Confirms that the helper observed successful set and store results even if no Steam overlay toast appears.
 	return true # Reports that the achievement is now committed through Steamworks.
+
+func _debug_print(message: String) -> void: # Emits achievement-controller diagnostics only in debug builds.
+	if not OS.is_debug_build(): # Keeps release sessions free from development-only achievement logging.
+		return # Skips console output outside editor and debug-export testing.
+	print("SteamAchievements: %s" % message) # Prefixes every controller message so the achievement flow is easy to isolate in Godot Output.
