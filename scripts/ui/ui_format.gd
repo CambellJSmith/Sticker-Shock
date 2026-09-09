@@ -6,7 +6,7 @@ static func duration(total_seconds: int) -> String: # Formats the real-world fre
 	var minutes: int = (seconds % 3600) / 60 # Extracts the remaining whole minutes.
 	return "%02d:%02d:%02d" % [hours, minutes, seconds % 60] # Keeps the countdown width stable.
 
-static func sticker_name(sticker_key: String) -> String: # Converts a normal or special sticker identity into a readable lowercase label.
-	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Removes only the per-copy special suffix before formatting the authored filename.
+static func sticker_name(sticker_key: String) -> String: # Converts any exact sticker edition identity into a readable lowercase label.
+	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Removes only the controlled per-copy edition suffix before formatting the authored filename.
 	var base_name: String = artwork_path.get_file().get_basename().replace("_", " ").replace("-", " ").to_lower() # Preserves the authored design name while formatting separators.
-	return "special · %s" % base_name if StickerVariant.is_special(sticker_key) else base_name # Makes special pull results explicit without changing the sticker's authored Name value.
+	return "%s · %s" % [StickerVariant.get_edition_name(sticker_key), base_name] if StickerVariant.is_special(sticker_key) else base_name # Makes rainbow, silver, and gold pull results explicit without changing authored metadata.
