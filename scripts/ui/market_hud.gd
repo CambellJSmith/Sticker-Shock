@@ -54,7 +54,7 @@ func focus_primary() -> void: # Selects a useful controller/keyboard action when
 	for sticker_key: String in _rows.keys(): # Searches cached rows in stable insertion order for the first actionable sale.
 		var row: MarketItem = _rows[sticker_key] # Retrieves the candidate edition row.
 		if row.visible and int(_available_count.call(sticker_key)) > 0: # Requires a visible edition with at least one unstuck copy.
-			(row.get_node("%sell_button") as GameButton).grab_focus() # Gives focus directly to the first actionable native sell button.
+			row.focus_sell() # Delegates focus to the row without reaching into its editor-authored child hierarchy.
 			return # Stops after selecting one useful primary action.
 	_back_button.grab_focus() # Falls back to the pack-shop route when nothing can currently be sold.
 
