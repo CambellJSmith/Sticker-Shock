@@ -65,7 +65,7 @@ func _spawn_placement_record(placement: Dictionary, animate_landing: bool) -> vo
 	_sticker_ids[runtime_id] = placement_id # Associates the interactive node with its authoritative persistent physical record.
 	_sticker_pages[runtime_id] = page_index # Associates the interactive node with its absolute virtual page so movement can persist page changes correctly.
 	_sticker_stacks[runtime_id] = stack_order # Associates the interactive node with its current logical paper layer.
-	_sticker_paths[runtime_id] = artwork_path # Associates inspection with the real artwork resource rather than the per-copy special suffix.
+	_sticker_paths[runtime_id] = sticker_key # Preserves the exact normal-or-special identity so inspection can reproduce the correct material treatment.
 	_stack_counter = maxi(_stack_counter, stack_order) # Ensures future grabs and new placements always rise above this restored sticker.
 	if animate_landing: # Plays the requested physical arrival only for newly committed manual or auto-packed stickers.
 		sticker.begin_new_sticker_landing(Vector2(sticker.global_position.x, sticker.global_position.z), stack_height) # Starts the little upward kick followed by the hard flat page slam.
