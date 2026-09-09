@@ -2,6 +2,7 @@ shader_type spatial; // Renders the sticker contact shadow inside the existing 3
 render_mode unshaded, cull_disabled, shadows_disabled, depth_draw_never, blend_mix, fog_disabled; // Keeps the shadow cheap, transparent, double-sided, and independent from scene lighting.
 
 uniform sampler2D sticker_texture : source_color; // Supplies the exact sticker artwork alpha used to shape the contact shadow.
+uniform vec2 sticker_texel_size = vec2(1.0); // Stores normalized source-pixel size supplied once by GDScript so fragments never query texture dimensions.
 uniform float shadow_opacity = 0.16; // Controls the subtle darkness of the resting contact shadow.
 uniform float blur_radius_texels = 1.75; // Controls the small Gaussian-style softness around the sticker silhouette.
 
@@ -13,9 +14,7 @@ float sample_sticker_alpha(vec2 uv) { // Samples source alpha while treating coo
 } // Completes the bounded alpha helper.
 
 void fragment() { // Builds one soft black silhouette from a compact nine-tap kernel.
-	vec2 source_size = max(vec2(textureSize(sticker_texture, 0)), vec2(1.0)); // Protects texel-size calculation from malformed zero-sized textures.
-	vec2 texel = vec2(1.0) / source_size; // Converts one source pixel into normalized UV distance.
-	vec2 blur_step = texel * blur_radius_texels; // Scales the compact kernel to the requested contact-shadow softness.
+	vec2 blur_step = sticker_texel_size * blur_radius_texels; // Scales the precomputed source-pixel size to the requested contact-shadow softness.
 	float blurred_alpha = sample_sticker_alpha(UV) * 4.0; // Gives the center sample the strongest Gaussian-style weight.
 	blurred_alpha += sample_sticker_alpha(UV + vec2(blur_step.x, 0.0)) * 2.0; // Adds the right cardinal blur sample.
 	blurred_alpha += sample_sticker_alpha(UV - vec2(blur_step.x, 0.0)) * 2.0; // Adds the left cardinal blur sample.
