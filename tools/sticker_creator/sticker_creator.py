@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -12,6 +13,7 @@ from sticker_creator_app import (
     atomic_write,
     godot_quote,
     quantize_png,
+    read_field,
     slugify,
     valid_png,
 )
@@ -43,6 +45,10 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
             command=self.open_batch_import,
         )
         self.batch_import_button.grid(row=5, column=3, sticky="new", padx=(8, 0), pady=4)
+        self._editing_id: int | None = None
+        self._editing_definition_path: Path | None = None
+        self._editing_art_path: Path | None = None
+        self._add_existing_sticker_controls()
         self._vision_ready: bool = False
         self._vision_busy: bool = False
         self._batch_busy: bool = False
@@ -63,6 +69,211 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         selected_art_path: str = self.art_var.get()
         if selected_art_path:
             self.name_var.set(Path(selected_art_path).stem)
+
+    def next_sticker_id(self) -> int:
+        used_ids: set[int] = self.existing_ids()
+        candidate: int = 1
+        while candidate in used_ids:
+            candidate += 1
+        return candidate
+
+    def _add_existing_sticker_controls(self) -> None:
+        parent: tk.Misc = self.sticker_tree.master
+        controls: ttk.Frame = ttk.Frame(parent, style="Panel.TFrame")
+        controls.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(7, 0))
+        ttk.Label(controls, text="select a sticker to edit or delete", style="Muted.TLabel").pack(side="left")
+        ttk.Button(controls, text="delete", command=self.delete_selected_sticker).pack(side="right")
+        ttk.Button(controls, text="edit", command=self.edit_selected_sticker).pack(side="right", padx=(0, 6))
+        self.sticker_tree.bind("<Double-1>", lambda _event: self.edit_selected_sticker())
+
+    def _selected_sticker_id(self) -> int | None:
+        selection: tuple[str, ...] = self.sticker_tree.selection()
+        if not selection:
+            return None
+        values: tuple[object, ...] = tuple(self.sticker_tree.item(selection[0], "values"))
+        if not values:
+            return None
+        try:
+            return int(str(values[0]))
+        except ValueError:
+            return None
+
+    def _resource_for_id(self, sticker_id: int) -> Path | None:
+        for resource_path in DEFINITION_ROOT.glob("*.tres"):
+            try:
+                resource_text: str = resource_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if read_field(resource_text, "id") == str(sticker_id):
+                return resource_path
+        return None
+
+    def _art_path_from_resource(self, resource_text: str) -> Path | None:
+        match: re.Match[str] | None = re.search(
+            r'\[ext_resource type="Texture2D" path="res://assets/stickers/art/([^"]+)"',
+            resource_text,
+        )
+        if match is None:
+            return None
+        return ART_ROOT / match.group(1)
+
+    def edit_selected_sticker(self) -> None:
+        sticker_id: int | None = self._selected_sticker_id()
+        if sticker_id is None:
+            messagebox.showerror("Sticker Creator", "Select a sticker first.", parent=self.root)
+            return
+        resource_path: Path | None = self._resource_for_id(sticker_id)
+        if resource_path is None:
+            messagebox.showerror("Sticker Creator", "The selected sticker resource could not be found.", parent=self.root)
+            return
+        try:
+            resource_text: str = resource_path.read_text(encoding="utf-8")
+        except OSError as error:
+            messagebox.showerror("Sticker Creator", str(error), parent=self.root)
+            return
+        art_path: Path | None = self._art_path_from_resource(resource_text)
+        if art_path is None or not art_path.is_file():
+            messagebox.showerror("Sticker Creator", "The selected sticker art could not be found.", parent=self.root)
+            return
+        self._editing_id = sticker_id
+        self._editing_definition_path = resource_path
+        self._editing_art_path = art_path
+        self.next_id_var.set(str(sticker_id))
+        self.name_var.set(read_field(resource_text, "name"))
+        self.art_var.set(str(art_path))
+        self.description_text.delete("1.0", tk.END)
+        self.description_text.insert("1.0", read_field(resource_text, "description"))
+        self.pack_var.set(read_field(resource_text, "pack"))
+        self.artist_var.set(read_field(resource_text, "artist"))
+        self.rarity_var.set(read_field(resource_text, "rarity"))
+        self.status_var.set(f"editing #{sticker_id:06d} · create sticker will save changes")
+
+    def delete_selected_sticker(self) -> None:
+        sticker_id: int | None = self._selected_sticker_id()
+        if sticker_id is None:
+            messagebox.showerror("Sticker Creator", "Select a sticker first.", parent=self.root)
+            return
+        resource_path: Path | None = self._resource_for_id(sticker_id)
+        if resource_path is None:
+            messagebox.showerror("Sticker Creator", "The selected sticker resource could not be found.", parent=self.root)
+            return
+        try:
+            resource_text: str = resource_path.read_text(encoding="utf-8")
+        except OSError as error:
+            messagebox.showerror("Sticker Creator", str(error), parent=self.root)
+            return
+        sticker_name: str = read_field(resource_text, "name")
+        if not messagebox.askyesno(
+            "Delete sticker",
+            f"Delete #{sticker_id:06d} · {sticker_name}?\n\nIts resource and PNG art will both be removed, and this ID will become available for the next created sticker.",
+            parent=self.root,
+        ):
+            return
+        art_path: Path | None = self._art_path_from_resource(resource_text)
+        try:
+            resource_path.unlink(missing_ok=True)
+            if art_path is not None:
+                art_path.unlink(missing_ok=True)
+        except OSError as error:
+            messagebox.showerror("Sticker Creator", f"Could not delete the sticker.\n\n{error}", parent=self.root)
+            return
+        if self._editing_id == sticker_id:
+            self._clear_edit_state()
+        self.refresh_existing_stickers()
+        self.clear_form()
+        self.status_var.set(f"deleted #{sticker_id:06d} · id is available again")
+
+    def create_sticker(self) -> None:
+        if self._editing_id is None:
+            super().create_sticker()
+            return
+        self._save_edited_sticker()
+
+    def _save_edited_sticker(self) -> None:
+        error: str = self.validate_form()
+        if error:
+            messagebox.showerror("cannot save sticker", error, parent=self.root)
+            return
+        sticker_id: int = int(self._editing_id)
+        old_definition: Path | None = self._editing_definition_path
+        old_art: Path | None = self._editing_art_path
+        sticker_name: str = self.name_var.get().strip()
+        source_art: Path = Path(self.art_var.get())
+        description: str = self.description_text.get("1.0", tk.END).strip()
+        base_name: str = f"{sticker_id:06d}_{slugify(sticker_name)}"
+        art_filename: str = base_name + ".png"
+        destination_art: Path = ART_ROOT / art_filename
+        destination_definition: Path = DEFINITION_ROOT / (base_name + ".tres")
+        try:
+            if old_art is not None and source_art.resolve() == old_art.resolve():
+                if destination_art != old_art:
+                    destination_art.write_bytes(old_art.read_bytes())
+            else:
+                quantize_png(source_art, destination_art)
+        except (OSError, ValueError) as art_error:
+            messagebox.showerror("art processing failed", str(art_error), parent=self.root)
+            return
+        definition_text: str = self._build_definition_text(
+            sticker_id,
+            sticker_name,
+            art_filename,
+            description,
+            self.pack_var.get(),
+            self.artist_var.get(),
+            self.rarity_var.get(),
+        )
+        try:
+            atomic_write(destination_definition, definition_text)
+        except OSError as write_error:
+            if destination_art != old_art:
+                destination_art.unlink(missing_ok=True)
+            messagebox.showerror("write failed", str(write_error), parent=self.root)
+            return
+        try:
+            if old_definition is not None and old_definition != destination_definition:
+                old_definition.unlink(missing_ok=True)
+            if old_art is not None and old_art != destination_art:
+                old_art.unlink(missing_ok=True)
+        except OSError as cleanup_error:
+            messagebox.showerror("cleanup failed", str(cleanup_error), parent=self.root)
+            return
+        self._clear_edit_state()
+        self.refresh_existing_stickers()
+        self.clear_form()
+        self.status_var.set(f"saved changes to #{sticker_id:06d}")
+
+    def _build_definition_text(
+        self,
+        sticker_id: int,
+        sticker_name: str,
+        art_filename: str,
+        description: str,
+        pack_name: str,
+        artist_name: str,
+        rarity: str,
+    ) -> str:
+        return (
+            '[gd_resource type="Resource" script_class="StickerDefinition" load_steps=3 format=3]\n\n'
+            f'[ext_resource type="Script" path="{DEFINITION_SCRIPT_PATH}" id="1_definition"]\n'
+            f'[ext_resource type="Texture2D" path="res://assets/stickers/art/{art_filename}" id="2_art"]\n\n'
+            '[resource]\nscript = ExtResource("1_definition")\n'
+            f'id = {sticker_id}\n'
+            f'name = {godot_quote(sticker_name)}\n'
+            'art = ExtResource("2_art")\n'
+            f'description = {godot_quote(description)}\n'
+            f'pack = {godot_quote(pack_name)}\n'
+            f'artist = {godot_quote(artist_name)}\n'
+            f'rarity = {godot_quote(rarity)}\n'
+        )
+
+    def clear_form(self) -> None:
+        self._clear_edit_state()
+        super().clear_form()
+
+    def _clear_edit_state(self) -> None:
+        self._editing_id = None
+        self._editing_definition_path = None
+        self._editing_art_path = None
 
     def edit_ai_prompt(self) -> None:
         prompt_window: tk.Toplevel = tk.Toplevel(self.root)
@@ -197,10 +408,9 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
 
     def _batch_import_worker(self, png_paths: list[Path], pack_name: str, artist_name: str) -> None:
         created_count: int = 0
-        starting_id: int = self.next_sticker_id()
         try:
             for index, source_art in enumerate(png_paths):
-                sticker_id: int = starting_id + index
+                sticker_id: int = self.next_sticker_id()
                 sticker_name: str = source_art.stem
                 rarity: str = BATCH_RARITIES[index % len(BATCH_RARITIES)]
                 self.root.after(
@@ -242,21 +452,19 @@ class FixedRarityStickerCreatorApp(StickerCreatorApp):
         destination_art: Path = ART_ROOT / art_filename
         destination_definition: Path = DEFINITION_ROOT / (base_name + ".tres")
         quantize_png(source_art, destination_art)
-        definition_text: str = (
-            '[gd_resource type="Resource" script_class="StickerDefinition" load_steps=3 format=3]\n\n'
-            f'[ext_resource type="Script" path="{DEFINITION_SCRIPT_PATH}" id="1_definition"]\n'
-            f'[ext_resource type="Texture2D" path="res://assets/stickers/art/{art_filename}" id="2_art"]\n\n'
-            '[resource]\nscript = ExtResource("1_definition")\n'
-            f'id = {sticker_id}\n'
-            f'name = {godot_quote(sticker_name)}\n'
-            'art = ExtResource("2_art")\n'
-            f'description = {godot_quote(description)}\n'
-            f'pack = {godot_quote(pack_name)}\n'
-            f'artist = {godot_quote(artist_name)}\n'
-            f'rarity = {godot_quote(rarity)}\n'
-        )
         try:
-            atomic_write(destination_definition, definition_text)
+            atomic_write(
+                destination_definition,
+                self._build_definition_text(
+                    sticker_id,
+                    sticker_name,
+                    art_filename,
+                    description,
+                    pack_name,
+                    artist_name,
+                    rarity,
+                ),
+            )
         except OSError:
             destination_art.unlink(missing_ok=True)
             raise
