@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StickerDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/sticker_definition.gd" id="1_definition"]
+[ext_resource type="Texture2D" path="res://assets/stickers/art/000037_rocco_knuckles.png" id="2_art"]
+
+[resource]
+script = ExtResource("1_definition")
+id = 37
+name = "Rocco Knuckles"
+art = ExtResource("2_art")
+description = ""
+pack = "Cheeky Chappies"
+artist = "Cambell"
+rarity = "Common"
