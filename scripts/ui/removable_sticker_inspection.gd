@@ -15,23 +15,27 @@ const CONTROLLER_DETAIL_SCROLL_SPEED: float = 520.0 # Converts trigger pressure 
 @onready var _pack_label: Label = $details_panel/margin/scroll/details/pack_label as Label # Shows the creator-authored pack assignment.
 @onready var _artist_label: Label = $details_panel/margin/scroll/details/artist_label as Label # Shows the creator-authored artist assignment.
 @onready var _description_label: Label = $details_panel/margin/scroll/details/description as Label # Shows the creator-authored flavour description with wrapping.
-@onready var _control_hint: Label = $bottom_bar/hint as Label # Explains the active mouse/keyboard or controller inspection mapping without adding another overlay.
+@onready var _control_hint: Label = $bottom_bar/hint as Label # Explains the active mouse/keyboard, conventional controller, and Steam gyro inspection mappings without another overlay.
 
 var _return_to_collection_action: Callable # Stores the exact placement-removal callback supplied by the book controller.
 var _market_value_provider: Callable # Stores a lightweight live-value lookup for the exact inspected edition.
 var _market_refresh_elapsed: float = 0.0 # Throttles inspection quote refreshes independently of rendering.
 var _last_controller_hint: bool = false # Avoids rewriting the inspection help label every frame while the same input family remains active.
+var _last_gyro_hint_available: bool = false # Rewrites the help label only when a Steam Input gyro appears, disconnects, or changes modal availability.
+var _steam_gyro: SteamInspectionGyro = SteamInspectionGyro.new() # Owns inspection-scoped Steam Input motion discovery, neutral reference, filtering, and coordinate conversion.
 
 func configure_actions() -> void: # Binds the existing inspection controls plus the collection-return action without signals.
 	super.configure_actions() # Preserves close, zoom, and reset behavior from the established inspection surface.
 	(_return_to_collection_button as GameButton).bind_action(_return_to_collection) # Routes the new action through the same native button abstraction as the rest of the UI.
 
-func open_inspection(sticker_texture: Texture2D, display_name: String, sticker_size: Vector2) -> void: # Opens the established physical inspector and immediately presents the correct active-device controls.
+func open_inspection(sticker_texture: Texture2D, display_name: String, sticker_size: Vector2) -> void: # Opens the established physical inspector and automatically enables Steam Input gyro motion when available.
 	super.open_inspection(sticker_texture, display_name, sticker_size) # Preserves mesh setup, canonical orientation, camera fit, zoom reset, and deterministic close-button focus.
 	_market_refresh_elapsed = 0.0 # Starts live-value and control-hint polling from a clean interval for this modal session.
 	_details_scroll.scroll_vertical = 0 # Starts every sticker's creator-authored details at the top for predictable controller reading.
+	_steam_gyro.begin_session() # Discovers a Steam Controller or Deck-class motion device and treats its current physical pose as neutral without snapping the sticker.
 	_last_controller_hint = not _is_controller_mode() # Forces the first hint refresh regardless of the previous inspection's input family.
-	_refresh_control_hint() # Shows either complete gamepad inspection controls or the established pointer/keyboard gestures.
+	_last_gyro_hint_available = not _steam_gyro.is_available() # Forces the first hint refresh regardless of whether Steam Input gyro discovery succeeded immediately.
+	_refresh_control_hint() # Shows the complete mapping including automatic gyro support when a motion device is available.
 
 func handle_input(event: InputEvent) -> bool: # Extends established mouse/keyboard inspection gestures with direct gamepad zoom and reset actions.
 	if super.handle_input(event): # Gives existing R/Q/E, mouse wheel, arcball, and right-drag gestures first ownership.
@@ -44,8 +48,8 @@ func handle_input(event: InputEvent) -> bool: # Extends established mouse/keyboa
 	if event.is_action_pressed(&"Button_Y"): # Maps the upper face button to zoom in for symmetric controller inspection.
 		_change_zoom(true) # Uses the same established clamped camera path as every other zoom source.
 		return true # Consumes the gamepad zoom-in action inside the modal.
-	if event.is_action_pressed(&"Button_RightStick"): # Gives the right-stick click a quick canonical-view reset without moving UI focus.
-		_reset_transform() # Restores orientation and zoom through the existing inspection reset implementation.
+	if event.is_action_pressed(&"Button_RightStick"): # Gives the right-stick click a canonical-view reset and matching Steam gyro recenter without moving UI focus.
+		_reset_transform() # Restores orientation and zoom while also making the controller's next gyro sample the new neutral reference.
 		return true # Consumes the reset action inside inspection.
 	return false # Leaves A/B/Start, left-stick UI focus, shoulders/triggers-as-held-state, and unrelated input to their normal owners.
 
@@ -79,19 +83,24 @@ func set_return_to_collection_action(action: Callable) -> void: # Configures whe
 	_return_to_collection_button.visible = action.is_valid() # Shows removal only when inspection came from a removable physical book placement.
 	_return_to_collection_button.disabled = not action.is_valid() # Prevents stale focus activation when no placement context exists.
 
-func close_inspection() -> void: # Clears removal and live-market context whenever the modal closes.
+func close_inspection() -> void: # Clears removal, live-market, and Steam gyro context whenever the modal closes.
 	_return_to_collection_action = Callable() # Prevents a later inspection from reusing a stale physical placement callback.
 	_market_value_provider = Callable() # Releases the exact-edition value lookup while no sticker is being inspected.
 	_market_refresh_elapsed = 0.0 # Resets quote polling state for the next inspection session.
+	_steam_gyro.end_session() # Stops motion polling and discards the old controller pose so every later inspection establishes a fresh neutral orientation.
 	if is_instance_valid(_return_to_collection_button): # Protects teardown before the editor-authored button has completed ready state.
 		_return_to_collection_button.visible = false # Hides the book-only action until another physical placement supplies context.
 	super.close_inspection() # Preserves the established rendering shutdown and modal visibility behavior.
 
-func _process(delta: float) -> void: # Drives continuous controller rotation, roll, detail scrolling, and live exchange-value updates while inspection is open.
-	if not visible: # Avoids analog input, hint updates, scrolling, and quote work while inspection is closed.
+func _process(delta: float) -> void: # Drives automatic Steam gyro rotation, conventional controller controls, detail scrolling, and live exchange-value updates while inspection is open.
+	if not visible: # Avoids gyro polling, analog input, hint updates, scrolling, and quote work while inspection is closed.
 		return # Leaves hidden inspection effectively idle.
-	_refresh_control_hint() # Switches the compact help string only when meaningful input changes the active device family.
-	if _is_controller_mode(): # Applies continuous analog inspection controls only while the gamepad is the most recently used device.
+	var gyro_delta: Quaternion = _steam_gyro.sample_rotation_delta() # Reads one filtered frame-to-frame Steam Input orientation change without applying the controller's absolute physical pose.
+	if gyro_delta.get_angle() > 0.0: # Applies only deliberate motion samples that survived gyro jitter and discontinuity filtering.
+		_orientation = (gyro_delta * _orientation).normalized() # Adds physical controller motion to the same unrestricted quaternion used by mouse and right-stick inspection.
+		_apply_orientation() # Updates the temporary sticker immediately while leaving persistent book placement untouched.
+	_refresh_control_hint() # Switches the compact help string when input family or Steam gyro availability changes.
+	if _is_controller_mode(): # Applies conventional controller controls alongside gyro so the right stick remains a complete fallback and can fine-adjust the gyro-driven view.
 		var look: Vector2 = Input.get_vector(&"StickRight_West", &"StickRight_East", &"StickRight_North", &"StickRight_South") # Reads camera-relative two-axis rotation independently from left-stick UI focus.
 		if look.length_squared() > 0.0001: # Avoids quaternion work while the right stick rests inside its configured deadzone.
 			_apply_controller_rotation(look, delta) # Converts screen-space stick direction into stable world-space pitch and yaw on the inspection pivot.
@@ -102,12 +111,16 @@ func _process(delta: float) -> void: # Drives continuous controller rotation, ro
 		if absf(scroll_input) > 0.001: # Avoids touching ScrollContainer state while both triggers rest.
 			_details_scroll.scroll_vertical += int(round(scroll_input * CONTROLLER_DETAIL_SCROLL_SPEED * delta)) # Lets the native ScrollContainer clamp continuous trigger scrolling to its actual content range.
 	if not _market_value_provider.is_valid(): # Skips quote polling for inspection contexts that do not have an authoritative market value provider.
-		return # Leaves controller transforms and details scrolling fully active even when no market quote exists.
+		return # Leaves gyro, controller transforms, and details scrolling fully active even when no market quote exists.
 	_market_refresh_elapsed += delta # Accumulates elapsed visible time between lightweight quote checks.
 	if _market_refresh_elapsed < 1.0: # Limits market advancement/value formatting to one check per second.
-		return # Keeps frame-by-frame inspection rendering and analog controls free of economy polling.
+		return # Keeps frame-by-frame inspection rendering and input free of economy polling.
 	_market_refresh_elapsed = 0.0 # Starts the next one-second quote-refresh interval.
 	_refresh_market_value() # Reads the same live market model used by the collector exchange.
+
+func _reset_transform() -> void: # Restores the canonical sticker presentation and recenters Steam gyro motion around the controller's current physical pose.
+	super._reset_transform() # Preserves the established orientation, zoom, gesture, camera, and toolbar reset behavior.
+	_steam_gyro.recenter() # Makes the next valid Steam Input orientation sample neutral so resetting never causes the gyro to rotate the sticker back immediately.
 
 func _refresh_market_value() -> void: # Updates the current exact-edition sell value from the authoritative market model.
 	if not _market_value_provider.is_valid(): # Handles catalogue-only inspection contexts defensively.
@@ -135,16 +148,22 @@ func _apply_controller_rotation(look: Vector2, delta: float) -> void: # Applies 
 	_orientation = (yaw_rotation * pitch_rotation * _orientation).normalized() # Composes both camera-relative rotations onto the existing unrestricted quaternion orientation.
 	_apply_orientation() # Writes the new inspection-only transform without touching persistent book placement.
 
-func _is_controller_mode() -> bool: # Reads the persistent application's shared most-recent-input mode for device-specific inspection behavior.
+func _is_controller_mode() -> bool: # Reads the persistent application's shared most-recent-input mode for device-specific conventional-controller behavior.
 	var game_ui: MarketGameUI = get_parent() as MarketGameUI # Narrows the modal owner to the controller-aware concrete UI used by the actual main scene.
-	return game_ui != null and game_ui.is_controller_input_active() # Uses one shared device-mode source so hints and analog transforms change together.
+	return game_ui != null and game_ui.is_controller_input_active() # Uses one shared device-mode source so focus and non-gyro analog controls change together.
 
-func _refresh_control_hint() -> void: # Presents a complete mapping for the active inspection input family without adding another UI surface.
-	var controller_mode: bool = _is_controller_mode() # Reads the current meaningful input family exactly once for this refresh.
-	if controller_mode == _last_controller_hint: # Avoids rewriting the same label every frame while input ownership is unchanged.
+func _refresh_control_hint() -> void: # Presents complete inspection controls while reflecting Steam gyro hot-plug availability without adding another UI surface.
+	var controller_mode: bool = _is_controller_mode() # Reads the current meaningful conventional input family exactly once for this refresh.
+	var gyro_available: bool = _steam_gyro.is_available() # Reads whether a live Steam Input motion device currently owns automatic inspection rotation.
+	if controller_mode == _last_controller_hint and gyro_available == _last_gyro_hint_available: # Avoids rewriting the same help label every frame while neither input family nor gyro availability changed.
 		return # Leaves the current concise help string stable.
-	_last_controller_hint = controller_mode # Records the newly displayed mapping before mutating the label.
-	if controller_mode: # Shows every non-menu gamepad transform available in the inspection modal.
-		_control_hint.text = "right stick rotate · LB/RB roll · LT/RT details · X/Y zoom · R3 reset · B close" # Makes unrestricted inspection and metadata reading fully discoverable without mouse or keyboard.
-	else: # Preserves the established desktop gesture mapping when mouse/keyboard is active.
+	_last_controller_hint = controller_mode # Records the newly displayed conventional input mapping before mutating the label.
+	_last_gyro_hint_available = gyro_available # Records the newly displayed Steam gyro availability state for hot-plug comparison.
+	if controller_mode and gyro_available: # Shows gyro plus every conventional controller fallback when both are available.
+		_control_hint.text = "gyro + right stick rotate · LB/RB roll · LT/RT details · X/Y zoom · R3 reset/recenter · B close" # Makes automatic motion control and manual fine adjustment equally discoverable.
+	elif controller_mode: # Shows the established complete gamepad mapping when no Steam Input gyro is available.
+		_control_hint.text = "right stick rotate · LB/RB roll · LT/RT details · X/Y zoom · R3 reset · B close" # Preserves full controller functionality as a transparent fallback.
+	elif gyro_available: # Keeps automatic Steam gyro rotation discoverable even if the most recent conventional input was mouse or keyboard.
+		_control_hint.text = "Steam gyro rotate · drag to rotate · right drag to roll · wheel to zoom · r reset/recenter" # Allows physical controller motion and desktop gestures to coexist without switching modes.
+	else: # Preserves the established desktop gesture mapping when no gamepad motion device is available.
 		_control_hint.text = "drag to rotate · right drag to roll · wheel to zoom · r to reset" # Retains concise original pointer/keyboard guidance.
