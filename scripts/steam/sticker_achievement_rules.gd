@@ -2,7 +2,7 @@ class_name StickerAchievementRules # Evaluates Sticker-Shock achievement conditi
 extends RefCounted # Keeps the rule set allocation-free apart from small temporary collections created during explicit progression synchronization.
 
 const FIRST_STICKER: StringName = &"STICKER_SHOCK_FIRST_STICKER" # Awards the first collected physical sticker copy.
-const FIRST_PACK: StringName = &"STICKER_SHOCK_FIRST_PACK" # Awards opening the first sticker pack, recoverable from current random-pull ownership and durable event history.
+const FIRST_PACK: StringName = &"STICKER_SHOCK_FIRST_PACK" # Awards opening the first sticker pack.
 const FIRST_BOOK_PLACEMENT: StringName = &"STICKER_SHOCK_FIRST_BOOK_PLACEMENT" # Awards the first physical sticker committed to the persistent book.
 const COLLECTION_10_PERCENT: StringName = &"STICKER_SHOCK_COLLECTION_10_PERCENT" # Awards discovery of at least ten percent of the current authored sticker catalogue.
 const COLLECTION_25_PERCENT: StringName = &"STICKER_SHOCK_COLLECTION_25_PERCENT" # Awards discovery of at least one quarter of the current authored sticker catalogue.
@@ -27,13 +27,19 @@ const COMPLETE_ONE_PACK: StringName = &"STICKER_SHOCK_COMPLETE_ONE_PACK" # Award
 const ALL_RARITIES: StringName = &"STICKER_SHOCK_ALL_RARITIES" # Awards discovering at least one sticker from every rarity currently represented in the catalogue.
 const FIRST_MARKET_SALE: StringName = &"STICKER_SHOCK_FIRST_MARKET_SALE" # Awards the first successful loose-copy sale at the collector exchange.
 
-const EVENT_API_NAMES: Array[StringName] = [FIRST_PACK, FIRST_MARKET_SALE] # Lists event-history achievements worth preserving when current state alone may later lose proof that they happened.
+const ALL_API_NAMES: Array[StringName] = [ # Provides one authoritative validation list for durable local achievement persistence and Steam synchronization.
+	FIRST_STICKER, FIRST_PACK, FIRST_BOOK_PLACEMENT, # Includes the three first-action milestones.
+	COLLECTION_10_PERCENT, COLLECTION_25_PERCENT, COLLECTION_50_PERCENT, COLLECTION_75_PERCENT, COLLECTION_90_PERCENT, COMPLETE_COLLECTION, # Includes every dynamically scaled collection milestone.
+	BOOK_25_PERCENT, BOOK_50_PERCENT, COMPLETE_BOOK, # Includes every dynamically scaled physical-book milestone.
+	FIRST_DUPLICATE, RAINBOW_EDITION, SILVER_EDITION, GOLD_EDITION, FULL_SPECTRUM, FULL_FINISH, # Includes duplicate and premium-finish milestones.
+	LEGENDARY, UNIQUE, ALL_UNIQUES, ALL_PACKS, COMPLETE_ONE_PACK, ALL_RARITIES, FIRST_MARKET_SALE, # Includes rarity, content-group, and market milestones.
+] # Completes the exact set that must also exist in Steamworks App 4281680.
 
-static func is_event_api_name(api_name: StringName) -> bool: # Reports whether one achievement uses local event-history persistence for offline reconciliation.
-	return EVENT_API_NAMES.has(api_name) # Accepts only the controlled event achievements authored by this rule set.
+static func is_valid_api_name(api_name: StringName) -> bool: # Reports whether one API name belongs to the controlled Sticker-Shock achievement set.
+	return ALL_API_NAMES.has(api_name) # Rejects stale or manually edited local-save values before any Steam call can use them.
 
 static func evaluate_progress(economy: StickerEconomy, catalog: StickerCatalog, book_state: StickerBookState) -> Array[StringName]: # Returns every state-derived achievement currently satisfied by authoritative progression and current authored content.
-	var earned: Array[StringName] = [] # Stores satisfied API names without mutating Steamworks or gameplay state.
+	var earned: Array[StringName] = [] # Stores satisfied API names without mutating local achievement history or Steamworks.
 	if economy == null or catalog == null or book_state == null: # Rejects incomplete startup wiring before any progression scan.
 		return earned # Returns no conditions until all authoritative models are available.
 	var catalog_count: int = catalog.get_sticker_count() # Uses the live authored catalogue size so percentage milestones automatically scale when stickers are added later.
@@ -97,7 +103,7 @@ static func evaluate_progress(economy: StickerEconomy, catalog: StickerCatalog, 
 		has_full_finish = has_full_finish or (normal_count > 0 and rainbow_count > 0 and silver_count > 0 and gold_count > 0) # Detects one design represented in every currently supported finish.
 		has_legendary = has_legendary or rarity_name == "Legendary" # Detects discovery of the established top random-pull rarity.
 		has_unique = has_unique or rarity_name == StickerCatalog.UNIQUE_RARITY # Detects discovery of any code/custom-system Unique sticker.
-	if has_random_pull_discovery: # Reconciles first-pack participation for existing saves without relying exclusively on event history introduced by this update.
+	if has_random_pull_discovery: # Reconciles first-pack participation for existing saves without relying exclusively on history introduced by this update.
 		earned.append(FIRST_PACK) # Awards the first pack milestone when current ownership proves at least one normal pack design has been received.
 	_append_fraction_achievement(earned, COLLECTION_10_PERCENT, discovered_count, catalog_count, 1, 10) # Awards ten-percent discovery using exact integer ratio comparison against the current catalogue.
 	_append_fraction_achievement(earned, COLLECTION_25_PERCENT, discovered_count, catalog_count, 1, 4) # Awards quarter completion against the current catalogue size.
@@ -136,7 +142,7 @@ static func evaluate_progress(economy: StickerEconomy, catalog: StickerCatalog, 
 		earned.append(COMPLETE_ONE_PACK) # Awards full discovery of any one dynamically sized authored pack.
 	if _contains_every_key(discovered_rarity_names, catalogue_rarity_names): # Compares collected rarity labels with every rarity currently represented by authored sticker definitions.
 		earned.append(ALL_RARITIES) # Awards dynamic rarity breadth without assuming the current rarity list can never expand.
-	return earned # Returns all currently satisfied state-derived achievements for idempotent Steam reconciliation.
+	return earned # Returns all currently satisfied state-derived achievements for durable local earning and idempotent Steam reconciliation.
 
 static func _get_placed_current_designs(book_state: StickerBookState, catalog: StickerCatalog) -> Dictionary[String, bool]: # Returns distinct current authored designs represented by at least one physical book placement.
 	var placed_designs: Dictionary[String, bool] = {} # Collapses duplicate physical copies and premium finishes to canonical artwork identities.
