@@ -1,4 +1,4 @@
-class_name CollectionBrowser extends MarginContainer # Owns cached collection cards, search, and filtering.
+class_name CollectionBrowser extends MarginContainer # Owns cached collection cards, search, filtering, and collection-first placement.
 
 const CARD_SCENE: PackedScene = preload("res://scenes/ui/collection_item.tscn") # Reuses an editor-authored native button card.
 
@@ -10,19 +10,21 @@ const CARD_SCENE: PackedScene = preload("res://scenes/ui/collection_item.tscn") 
 @onready var _completion: Label = %completion as Label # Shows unique collection completion.
 @onready var _progress: ProgressBar = %progress as ProgressBar # Visualizes progress across the whole catalogue.
 
-var _economy: StickerEconomy # Reads ownership without modifying progression.
+var _economy: StickerEconomy # Reads lifetime ownership without modifying progression.
 var _catalog: StickerCatalog # Supplies discovered resource paths.
-var _inspect: Callable = Callable() # Opens a selected owned design in the shared inspector.
+var _place: Callable = Callable() # Starts book placement for one available collected copy.
+var _available_count: Callable = Callable() # Reports how many copies of a design remain available to place.
 var _cards: Array[CollectionItem] = [] # Keeps instantiated cards across route changes.
 var _filters: Array[GameButton] = [] # Holds the native ownership-tab controls.
 var _filter_index: int = 0 # Remembers the selected ownership view.
 var _query: String = "" # Caches the last applied normalized query.
 var _refresh_elapsed: float = 0.0 # Throttles signal-free text and size checks while visible.
 
-func configure(economy: StickerEconomy, catalog: StickerCatalog, inspect: Callable) -> void: # Binds model dependencies and reusable native actions.
+func configure(economy: StickerEconomy, catalog: StickerCatalog, place: Callable, available_count: Callable) -> void: # Binds model dependencies and collection placement actions.
 	_economy = economy # Retains the authoritative ownership model.
 	_catalog = catalog # Retains the discovered design catalogue.
-	_inspect = inspect # Retains the inspector action supplied by the shell.
+	_place = place # Retains the controller-owned placement entry point.
+	_available_count = available_count # Retains the controller-owned availability calculation.
 	_filters = [%all_filter as GameButton, %owned_filter as GameButton, %missing_filter as GameButton] # Establishes the filter order.
 	for index: int in range(_filters.size()): # Binds each tab once without signals.
 		_filters[index].bind_action(_set_filter.bind(index)) # Routes native activation to its ownership filter.
@@ -37,10 +39,11 @@ func refresh() -> void: # Updates cards on entry or an explicit progress change.
 				continue # Skips unavailable artwork while keeping the browser usable.
 			var card: CollectionItem = CARD_SCENE.instantiate() as CollectionItem # Instantiates the reusable scene.
 			_grid.add_child(card) # Adds the card to the native layout before configuration.
-			card.configure(path, texture, _inspect) # Binds artwork and inspection exactly once.
+			card.configure(path, texture, _place) # Binds artwork and collection-first placement exactly once.
 			_cards.append(card) # Retains the card for future ownership refreshes.
-	for card: CollectionItem in _cards: # Updates only small ownership fields after pack changes.
-		card.refresh_count(_economy.get_owned_count(card.get_sticker_path())) # Avoids rebuilding textures or controls.
+	for card: CollectionItem in _cards: # Updates only small ownership fields after pack or book changes.
+		var path: String = card.get_sticker_path() # Reads the card's stable resource identity once.
+		card.refresh_count(_economy.get_owned_count(path), int(_available_count.call(path))) # Reflects lifetime ownership and copies not yet in the book.
 	_completion.text = "%d / %d discovered" % [_economy.get_unique_owned_count(), _catalog.get_sticker_count()] # Shows whole-collection progress independently of filtering.
 	_progress.max_value = maxi(_catalog.get_sticker_count(), 1) # Handles an empty catalogue safely.
 	_progress.value = _economy.get_unique_owned_count() # Updates collection completion.
@@ -83,4 +86,4 @@ func _apply_filter() -> void: # Updates visibility while preserving instantiated
 		_filters[index].set_pressed_no_signal(index == _filter_index) # Updates state without signal-based routing.
 	_empty.visible = shown == 0 # Shows recovery guidance only when no result exists.
 	_scroll.visible = shown > 0 # Gives empty-state content the available page area.
-	_summary.text = "%d designs · select a collected sticker to inspect" % shown # Explains the next available interaction.
+	_summary.text = "%d designs · select an available collected sticker to add it to your book" % shown # Explains the collection-first placement flow.
