@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.7")
 [autoload]
 
 SteamManager="*res://scripts/steam/steam_manager.gd"
+SteamAchievements="*res://scripts/steam/steam_achievements.gd"
 StickerContentMigration="*res://scripts/sticker_content_migration.gd"
 
 [display]

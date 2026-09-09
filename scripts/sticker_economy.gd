@@ -18,6 +18,7 @@ var _random_number_generator: RandomNumberGenerator = RandomNumberGenerator.new(
 func initialize() -> void: # Initializes random generation and loads persistent economy state before the shop becomes interactive.
 	_random_number_generator.randomize() # Seeds this economy instance from the operating system for independent pack draws each run.
 	_load_or_create_save() # Restores progression or creates a clean first-run save when none exists.
+	SteamAchievements.sync_first_sticker(get_total_owned_count()) # Reconciles existing collections so players who already own stickers receive the newly introduced achievement.
 
 func get_currency() -> int: # Exposes the player's current spendable in-game currency.
 	return _currency # Returns the protected currency balance without exposing write access.
@@ -121,8 +122,11 @@ func _grant_pack(pack: PackedStringArray) -> void: # Adds all edition-aware pack
 		_grant_sticker(sticker_key) # Reuses the one-copy grant path for consistent edition-aware ownership updates.
 
 func _grant_sticker(sticker_key: String) -> void: # Adds exactly one physical copy of a normal or special sticker identity to persistent ownership.
+	var collection_was_empty: bool = get_total_owned_count() <= 0 # Detects the exact zero-to-one collection transition before mutating ownership.
 	var current_count: int = maxi(int(_owned_sticker_counts.get(sticker_key, 0)), 0) # Reads the existing validated ownership count for the exact edition.
 	_owned_sticker_counts[sticker_key] = current_count + 1 # Grants one additional physical copy of that edition.
+	if collection_was_empty: # Awards the achievement only for the first physical sticker transition rather than every pack slot.
+		SteamAchievements.sync_first_sticker(1) # Reports the earned condition immediately while the sticker grant remains the single authoritative acquisition path.
 
 func _load_or_create_save() -> void: # Restores progression from disk or establishes first-run defaults when no valid save is available.
 	_reset_to_defaults() # Starts from known safe values so any load failure has deterministic fallback state.
