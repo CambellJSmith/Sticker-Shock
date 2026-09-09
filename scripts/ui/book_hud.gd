@@ -29,9 +29,9 @@ func refresh() -> void: # Updates navigation and context guidance only when page
 	_previous.disabled = spread <= 0 # Disables backward navigation at the first spread.
 	_next.disabled = spread >= _book_state.get_spread_count() - 1 # Disables forward navigation at the final saved spread.
 	if _controller_mode: # Describes the dedicated gamepad split between UI navigation and physical sticker interaction.
-		_hint.text = "spread %d of %d · right stick aim · X inspect / peel" % [spread + 1, _book_state.get_spread_count()] # Keeps controller mechanics discoverable without taking over left-stick menu focus.
+		_hint.text = "spread %d of %d · right stick aims · white dot marks peel edge · X inspect / peel" % [spread + 1, _book_state.get_spread_count()] # Explains that the right-stick pointer chooses an alpha-edge peel origin before X commits the gesture.
 	else: # Preserves existing mouse guidance for players who most recently used pointer input.
-		_hint.text = "spread %d of %d · click to inspect · drag to peel" % [spread + 1, _book_state.get_spread_count()] # Keeps page progress and core mouse controls together.
+		_hint.text = "spread %d of %d · white dot follows nearest peel edge · click to inspect · drag to peel" % [spread + 1, _book_state.get_spread_count()] # Makes the mouse-driven edge handle discoverable while retaining click-versus-drag semantics.
 	_empty.visible = _book_state.get_placement_count() == 0 and not _placing # Avoids overlaying guidance while placing the first sticker.
 
 func set_placing(placing: bool) -> void: # Switches between normal browsing and manual-placement controls.
