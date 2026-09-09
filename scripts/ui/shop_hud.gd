@@ -67,9 +67,9 @@ func refresh() -> void: # Updates availability and explanatory text without rebu
 	_buy.disabled = has_reveal or not _economy.can_buy_pack(_catalog) # Enforces native disabled behavior before a paid selected-pack transaction.
 	_free.disabled = has_reveal or not _economy.can_claim_free_pack(_catalog) # Prevents another claim while viewing a reward or before the cooldown expires.
 	_redeem.disabled = has_reveal or _code_input.text.is_empty() # Requires exact typed code input and no active reveal.
-	_buy.text = "open %s · %d coins" % [_economy.get_selected_pack_name(), _economy.get_pack_price()] if not _economy.get_selected_pack_name().is_empty() else "choose a pack" # Shows the exact authored pack and shared price before activation.
-	var missing_coins: int = maxi(_economy.get_pack_price() - _economy.get_currency(), 0) # Computes actionable affordability feedback.
-	(%standard_detail as Label).text = "need %d more coins" % missing_coins if missing_coins > 0 else "%d stickers · all packs same price" % _economy.get_pack_size() # Explains affordability and common pricing.
+	_buy.text = "open %s · £%d" % [_economy.get_selected_pack_name(), _economy.get_pack_price()] if not _economy.get_selected_pack_name().is_empty() else "choose a pack" # Shows the exact authored pack and shared pound price before activation.
+	var missing_currency: int = maxi(_economy.get_pack_price() - _economy.get_currency(), 0) # Computes actionable affordability feedback.
+	(%standard_detail as Label).text = "need £%d more" % missing_currency if missing_currency > 0 else "%d stickers · all packs same price" % _economy.get_pack_size() # Explains affordability and common pricing.
 	var remaining: int = _economy.get_free_pack_seconds_remaining() # Reads the real-world free-pack timer.
 	(%free_detail as Label).text = "random pack ready" if remaining <= 0 else "random pack ready in %s" % UIFormat.duration(remaining) # Explains that every free claim selects its authored pack randomly.
 	_free.text = "claim random free pack" if remaining <= 0 else "come back for your free pack" # Avoids presenting an unavailable claim as actionable.
