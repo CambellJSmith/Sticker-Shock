@@ -22,3 +22,4 @@ mono_crash.*.json
 
 # Sticker Creator local Python environment
 tools/sticker_creator/.venv/
+__pycache__/

@@ -11,7 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from PIL import Image
+from sticker_art_store import StickerArtStore, replace_files # Stores original artwork and commits complete authoring bundles.
+from sticker_border_controls import BorderControls # Composes colour, width, smoothing, and live preview controls.
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 TOOL_ROOT: Path = Path(__file__).resolve().parent
@@ -19,6 +20,7 @@ LISTS_JSON_PATH: Path = TOOL_ROOT / "sticker_lists.json"
 LISTS_RESOURCE_PATH: Path = REPO_ROOT / "data" / "sticker_lists.tres"
 DEFINITION_ROOT: Path = REPO_ROOT / "data" / "stickers"
 ART_ROOT: Path = REPO_ROOT / "assets" / "stickers" / "art"
+SOURCE_ROOT: Path = TOOL_ROOT / "source_art" # Keeps original artwork and recipes outside runtime sticker discovery.
 DEFINITION_SCRIPT_PATH: str = "res://scripts/data/sticker_definition.gd"
 LISTS_SCRIPT_PATH: str = "res://scripts/data/sticker_lists.gd"
 PNG_SIGNATURE: bytes = b"\x89PNG\r\n\x1a\n"
@@ -40,6 +42,7 @@ GENERATED_PATHS: tuple[str, ...] = (
     "assets/stickers/art",
     "data/sticker_lists.tres",
     "tools/sticker_creator/sticker_lists.json",
+    "tools/sticker_creator/source_art", # Includes preserved originals and border recipes in the tool's normal PR workflow.
 )
 
 
@@ -73,25 +76,6 @@ def valid_png(path: Path) -> bool:
         return False
 
 
-def quantize_png(source_path: Path, destination_path: Path) -> None:
-    destination_path.parent.mkdir(parents=True, exist_ok=True)
-    with Image.open(source_path) as source_image:
-        rgba_image: Image.Image = source_image.convert("RGBA")
-        try:
-            quantized_image: Image.Image = rgba_image.quantize(
-                colors=256,
-                method=Image.Quantize.LIBIMAGEQUANT,
-                dither=Image.Dither.FLOYDSTEINBERG,
-            )
-        except (ValueError, AttributeError):
-            quantized_image = rgba_image.quantize(
-                colors=256,
-                method=Image.Quantize.FASTOCTREE,
-                dither=Image.Dither.FLOYDSTEINBERG,
-            )
-        quantized_image.save(destination_path, format="PNG", optimize=True)
-
-
 def read_field(resource_text: str, field_name: str) -> str:
     match: re.Match[str] | None = re.search(rf"^{re.escape(field_name)} = (.+)$", resource_text, re.MULTILINE)
     if match is None:
@@ -117,8 +101,10 @@ class StickerCreatorApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root: tk.Tk = root
         self.root.title("Sticker-Shock · Sticker Creator")
-        self.root.geometry("1240x800")
-        self.root.minsize(1040, 680)
+        self.root.geometry("1240x840") # Fits the border controls and existing-sticker list on typical desktop displays.
+        self.root.minsize(1040, 800) # Keeps the complete authoring form and an editable existing-sticker row accessible.
+        self._art_store: StickerArtStore = StickerArtStore(SOURCE_ROOT, ART_ROOT) # Owns original source recovery and border recipe persistence.
+        self._content_busy: bool = False # Prevents simultaneous imports, edits, and content commits from racing on sticker IDs.
 
         self.lists: dict[str, list[str]] = self.load_lists()
         self.listboxes: dict[str, tk.Listbox] = {}
@@ -163,6 +149,7 @@ class StickerCreatorApp:
         style.configure("Accent.TButton", background=ACCENT, foreground="#ffffff", bordercolor=ACCENT, padding=(12, 5), font=("Sans", 10, "bold"))
         style.map("Accent.TButton", background=[("active", ACCENT_ACTIVE), ("pressed", ACCENT)])
         style.configure("TEntry", fieldbackground=FIELD, foreground=TEXT, bordercolor=SEPARATOR, padding=(6, 4))
+        style.configure("TSpinbox", fieldbackground=FIELD, background=FIELD, foreground=TEXT, arrowcolor=TEXT_MUTED, bordercolor=SEPARATOR, padding=(4, 2)) # Gives numeric border fields the same dark appearance as the surrounding controls.
         style.configure("Readonly.TEntry", fieldbackground=PANEL_ALT, foreground=TEXT_MUTED, bordercolor=SEPARATOR, padding=(6, 4))
         style.map("Readonly.TEntry", fieldbackground=[("readonly", PANEL_ALT)])
         style.configure("TCombobox", fieldbackground=FIELD, background=FIELD, foreground=TEXT, arrowcolor=TEXT_MUTED, bordercolor=SEPARATOR, padding=(6, 4))
@@ -218,15 +205,17 @@ class StickerCreatorApp:
         ttk.Button(form_content, text="open…", command=self.browse_art).grid(row=2, column=2, padx=(8, 0), pady=4)
 
         ttk.Label(form_content, text="description", style="Panel.TLabel").grid(row=3, column=0, sticky="nw", padx=(0, 12), pady=4)
-        self.description_text = tk.Text(form_content, height=5, bg=FIELD, fg=TEXT, insertbackground=TEXT, selectbackground=SELECT, selectforeground="#ffffff", wrap=tk.WORD, relief=tk.FLAT, highlightthickness=1, highlightbackground=SEPARATOR, highlightcolor=ACCENT, padx=7, pady=5)
+        self.description_text = tk.Text(form_content, height=3, bg=FIELD, fg=TEXT, insertbackground=TEXT, selectbackground=SELECT, selectforeground="#ffffff", wrap=tk.WORD, relief=tk.FLAT, highlightthickness=1, highlightbackground=SEPARATOR, highlightcolor=ACCENT, padx=7, pady=5) # Keeps descriptions editable while leaving room for border preview and the existing-sticker list.
         self.description_text.grid(row=3, column=1, columnspan=2, sticky="ew", pady=4)
         self.add_combo_row(form_content, 4, "pack", self.pack_var, "packs")
         self.add_combo_row(form_content, 5, "artist", self.artist_var, "artists")
         self.add_combo_row(form_content, 6, "rarity", self.rarity_var, "rarities")
+        self._border_controls: BorderControls = BorderControls(form_content, self.art_var, self._art_store.resolve_source) # Shares the exact authoring pipeline with live preview.
+        self._border_controls.grid(row=7, column=0, columnspan=4, sticky="ew") # Places border controls and preview above the save actions.
 
         button_bar: ttk.Frame = ttk.Frame(form_content, style="Panel.TFrame")
-        button_bar.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(10, 0))
-        ttk.Label(button_bar, text="art is quantized to 256 colors · id is automatic", style="Muted.TLabel").pack(side=tk.LEFT)
+        button_bar.grid(row=8, column=0, columnspan=4, sticky="ew", pady=(10, 0)) # Keeps save actions below the new border panel.
+        ttk.Label(button_bar, text="original art is preserved · 256-colour export", style="Muted.TLabel").pack(side=tk.LEFT) # Explains reversible artwork editing beside the save action.
         ttk.Button(button_bar, text="clear", command=self.clear_form).pack(side=tk.RIGHT, padx=(8, 0))
         ttk.Button(button_bar, text="create sticker", style="Accent.TButton", command=self.create_sticker).pack(side=tk.RIGHT)
 
@@ -248,9 +237,10 @@ class StickerCreatorApp:
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.sticker_tree.configure(yscrollcommand=scrollbar.set)
 
-        tk.Frame(self.root, bg=SEPARATOR, height=1).pack(fill=tk.X)
+        status_separator: tk.Frame = tk.Frame(self.root, bg=SEPARATOR, height=1) # Separates the persistent status bar from the resizable authoring area.
+        status_separator.pack(side=tk.BOTTOM, fill=tk.X, before=main) # Reserves separator space before the expandable main panel is allocated.
         status_bar: ttk.Frame = ttk.Frame(self.root, style="Header.TFrame", padding=(10, 4))
-        status_bar.pack(fill=tk.X)
+        status_bar.pack(side=tk.BOTTOM, fill=tk.X, before=status_separator) # Keeps status feedback visible even at the minimum window height.
         ttk.Label(status_bar, textvariable=self.status_var, style="Header.TLabel").pack(side=tk.LEFT)
         ttk.Label(status_bar, text="data/stickers  ·  assets/stickers/art", style="Header.TLabel").pack(side=tk.RIGHT)
 
@@ -336,6 +326,8 @@ class StickerCreatorApp:
             self.rarity_var.set("")
 
     def add_list_value(self, key: str) -> None:
+        if self._content_busy: # Keeps pack and artist lists stable while content is being imported or published.
+            return # Allows metadata edits again after the current operation completes.
         singular: str = {"packs": "pack", "artists": "artist", "rarities": "rarity"}[key]
         value: str | None = simpledialog.askstring(f"add_{singular}", f"new {singular}", parent=self.root)
         if value is None:
@@ -349,6 +341,8 @@ class StickerCreatorApp:
         self.status_var.set(f"added {singular}: {value}")
 
     def remove_list_value(self, key: str) -> None:
+        if self._content_busy: # Prevents removing a pack or artist selected by an active batch.
+            return # Preserves metadata references until the import or commit is complete.
         selection: tuple[int, ...] = self.listboxes[key].curselection()
         if not selection:
             return
@@ -377,6 +371,8 @@ class StickerCreatorApp:
             self.art_var.set(selected_path)
 
     def create_sticker(self) -> None:
+        if self._content_busy: # Avoids assigning a conflicting ID during a batch import or content commit.
+            return # Waits for the active authoring operation to complete.
         error: str = self.validate_form()
         if error:
             messagebox.showerror("cannot create sticker", error, parent=self.root)
@@ -389,11 +385,6 @@ class StickerCreatorApp:
         art_filename: str = base_name + ".png"
         destination_art: Path = ART_ROOT / art_filename
         destination_definition: Path = DEFINITION_ROOT / (base_name + ".tres")
-        try:
-            quantize_png(source_art, destination_art)
-        except (OSError, ValueError) as quantize_error:
-            messagebox.showerror("art processing failed", str(quantize_error), parent=self.root)
-            return
         definition_text: str = (
             '[gd_resource type="Resource" script_class="StickerDefinition" load_steps=3 format=3]\n\n'
             f'[ext_resource type="Script" path="{DEFINITION_SCRIPT_PATH}" id="1_definition"]\n'
@@ -408,9 +399,10 @@ class StickerCreatorApp:
             f'rarity = {godot_quote(self.rarity_var.get())}\n'
         )
         try:
-            atomic_write(destination_definition, definition_text)
-        except OSError as write_error:
-            destination_art.unlink(missing_ok=True)
+            files: dict[Path, bytes] = self._art_store.prepare(sticker_id, source_art, destination_art, self._border_controls.settings()) # Builds source, recipe, and bordered artwork from original pixels.
+            files[destination_definition] = definition_text.encode("utf-8") # Adds the runtime definition to the same save transaction.
+            replace_files(files) # Publishes complete sticker content with rollback on ordinary write failure.
+        except (OSError, ValueError) as write_error: # Reports invalid artwork or a failed complete save without leaving an orphaned PNG.
             messagebox.showerror("write failed", str(write_error), parent=self.root)
             return
         self.refresh_existing_stickers()
@@ -418,6 +410,10 @@ class StickerCreatorApp:
         self.status_var.set(f"created #{sticker_id:06d} · quantized to 256 colors")
 
     def validate_form(self) -> str:
+        try: # Validates border fields before allocating or writing artwork.
+            self._border_controls.settings() # Applies the same validation used by preview and batch import.
+        except ValueError as error: # Turns invalid numeric or colour input into normal form feedback.
+            return str(error) # Explains which border setting needs correction.
         if not self.name_var.get().strip():
             return "name is required."
         if not valid_png(Path(self.art_var.get())):
@@ -474,6 +470,9 @@ class StickerCreatorApp:
         self.refresh_next_id()
 
     def commit_content(self) -> None:
+        if self._content_busy: # Prevents committing partially completed batch content or starting a duplicate commit.
+            return # Leaves the active authoring operation in control.
+        self._content_busy = True # Holds content mutation ownership until the commit callback completes.
         self.commit_button.state(["disabled"])
         self.status_var.set("committing sticker content…")
         threading.Thread(target=self.commit_content_worker, daemon=True).start()
@@ -530,12 +529,14 @@ class StickerCreatorApp:
         return "Sticker content committed, PR created, and merged into main."
 
     def finish_commit_success(self, message: str) -> None:
+        self._content_busy = False # Releases authoring operations after the content workflow finishes.
         self.commit_button.state(["!disabled"])
         self.refresh_existing_stickers()
         self.status_var.set("commit complete")
         messagebox.showinfo("Commit complete", message, parent=self.root)
 
     def finish_commit_error(self, message: str) -> None:
+        self._content_busy = False # Restores editing after a failed content workflow.
         self.commit_button.state(["!disabled"])
         self.status_var.set("commit failed")
         messagebox.showerror("Commit failed", message, parent=self.root)
