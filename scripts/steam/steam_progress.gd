@@ -4,18 +4,34 @@ extends RefCounted # Keeps the helper allocation-free for callers that use its s
 static func unlock_achievement(api_name: StringName) -> bool: # Unlocks one Steamworks achievement and immediately commits the change.
 	if not SteamManager.is_available() or api_name.is_empty(): # Rejects invalid requests before touching the Steam API.
 		return false # Reports that no achievement state was changed.
-	if not bool(Steam.setAchievement(String(api_name))): # Updates the achievement in Steam's local stats state first.
+	var api_name_string: String = String(api_name) # Converts the authored StringName once for the native Steamworks calls and debug output.
+	_debug_print_achievement_state(api_name_string, "before setAchievement") # Captures whether Steam can read the published API name and whether it is already unlocked before mutation.
+	var set_result: bool = bool(Steam.setAchievement(api_name_string)) # Updates the achievement in Steam's local stats state first.
+	_debug_print_achievement_result(api_name_string, "setAchievement", set_result) # Reports the native set result in debug builds so rejected API names or unloaded stats are visible immediately.
+	if not set_result: # Stops before persistence when Steamworks rejected the local achievement mutation.
 		return false # Reports that Steamworks rejected the configured API name or current stats state.
-	return bool(Steam.storeStats()) # Commits the unlocked achievement so the Steam backend and overlay receive it promptly.
+	_debug_print_achievement_state(api_name_string, "after setAchievement") # Verifies whether Steam's local cached achievement state changed before StoreStats runs.
+	var store_result: bool = bool(Steam.storeStats()) # Commits the unlocked achievement so the Steam backend and overlay receive it promptly.
+	_debug_print_achievement_result(api_name_string, "storeStats", store_result) # Reports whether Steam accepted the persistence request in debug builds.
+	_debug_print_achievement_state(api_name_string, "after storeStats") # Reads the cached state again so a silent successful unlock is distinguishable from an overlay-notification problem.
+	return store_result # Reports whether Steam accepted the explicit persistence request.
 
 static func clear_achievement_for_testing(api_name: StringName) -> bool: # Clears one achievement only in debug builds for repeatable local Steamworks testing.
 	if not OS.is_debug_build(): # Prevents release gameplay from exposing achievement-reset behavior.
 		return false # Reports that release builds may not clear achievements.
 	if not SteamManager.is_available() or api_name.is_empty(): # Rejects reset attempts without a live Steam API or valid achievement name.
 		return false # Reports that no achievement state was changed.
-	if not bool(Steam.clearAchievement(String(api_name))): # Clears the local Steam achievement state using the authored API name.
+	var api_name_string: String = String(api_name) # Converts the authored StringName once for native calls and diagnostics.
+	_debug_print_achievement_state(api_name_string, "before clearAchievement") # Records the starting state so repeated tests confirm the achievement was actually unlocked before reset.
+	var clear_result: bool = bool(Steam.clearAchievement(api_name_string)) # Clears the local Steam achievement state using the authored API name.
+	_debug_print_achievement_result(api_name_string, "clearAchievement", clear_result) # Reports whether Steam accepted the local reset in the debug build.
+	if not clear_result: # Stops before persistence when Steamworks rejected the reset request.
 		return false # Reports that Steamworks rejected the reset request.
-	return bool(Steam.storeStats()) # Commits the debug reset so repeated achievement testing starts from a known server state.
+	_debug_print_achievement_state(api_name_string, "after clearAchievement") # Confirms the local cached state changed before committing the reset.
+	var store_result: bool = bool(Steam.storeStats()) # Commits the debug reset so repeated achievement testing starts from a known server state.
+	_debug_print_achievement_result(api_name_string, "storeStats after clearAchievement", store_result) # Reports whether the reset persistence request was accepted.
+	_debug_print_achievement_state(api_name_string, "after clear storeStats") # Confirms the cached state after the reset commit for end-to-end test diagnostics.
+	return store_result # Reports whether Steam accepted the explicit reset persistence request.
 
 static func show_achievement_progress(api_name: StringName, current_progress: int, maximum_progress: int) -> bool: # Shows Steam's native progress toast for a progress-based achievement.
 	if not SteamManager.is_available() or api_name.is_empty(): # Rejects progress presentation without a live Steam API or configured achievement name.
@@ -49,3 +65,14 @@ static func store_stats() -> bool: # Commits all pending Steam stat and achievem
 	if not SteamManager.is_available(): # Rejects persistence requests without a live Steam API.
 		return false # Reports that no backend store request was submitted.
 	return bool(Steam.storeStats()) # Sends the current Steamworks stat snapshot to the backend in one explicit commit.
+
+static func _debug_print_achievement_state(api_name: String, phase: String) -> void: # Reads and prints one achievement's raw GodotSteam state only while running a debug build.
+	if not OS.is_debug_build(): # Keeps release builds free from diagnostic native reads and console output.
+		return # Skips the diagnostic path entirely outside development builds.
+	var state: Dictionary = Steam.getAchievement(api_name) # Preserves the raw GodotSteam dictionary so return flags and achieved state remain visible without assumptions about key naming.
+	print("Steam achievement state: api=%s phase=%s state=%s" % [api_name, phase, str(state)]) # Emits one compact line that can be compared before and after each Steamworks mutation.
+
+static func _debug_print_achievement_result(api_name: String, operation: String, result: bool) -> void: # Prints the boolean result of one native achievement operation only in debug builds.
+	if not OS.is_debug_build(): # Keeps release builds free from development-only diagnostics.
+		return # Skips console output outside development builds.
+	print("Steam achievement operation: api=%s operation=%s result=%s" % [api_name, operation, str(result)]) # Exposes exactly which Steamworks call accepted or rejected the current achievement transaction.
