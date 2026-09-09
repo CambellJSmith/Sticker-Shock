@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/market_hud.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ui/market_price_chart.gd" id="3"]
 
 [node name="market_hud" type="Control"]
 layout_mode = 1
@@ -40,7 +41,7 @@ theme_type_variation = "HeadingLabel"
 theme_override_font_sizes/font_size = 28
 
 [node name="subtitle" type="Label" parent="area/content"]
-text = "rarity sets the baseline. demand moves the price. rainbow, silver and gold editions add escalating premiums."
+text = "live collector prices move every 15 seconds. watch momentum, hold through runs, or sell into strength."
 mouse_filter = 2
 theme_type_variation = "MutedLabel"
 autowrap_mode = 2
@@ -58,9 +59,41 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 
 [node name="market_clock" type="Label" parent="area/content/ticker/content"]
-text = "next market move in 10:00"
+text = "next quote in 00:15"
 mouse_filter = 2
 theme_type_variation = "AccentLabel"
+unique_name_in_owner = true
+
+[node name="chart_panel" type="PanelContainer" parent="area/content"]
+custom_minimum_size = Vector2(0, 230)
+theme_type_variation = "ChromePanel"
+
+[node name="content" type="VBoxContainer" parent="area/content/chart_panel"]
+theme_override_constants/separation = 4
+
+[node name="header" type="HBoxContainer" parent="area/content/chart_panel/content"]
+theme_override_constants/separation = 12
+
+[node name="chart_title" type="Label" parent="area/content/chart_panel/content/header"]
+text = "select a sticker to view its market"
+size_flags_horizontal = 3
+theme_type_variation = "HeadingLabel"
+theme_override_font_sizes/font_size = 18
+mouse_filter = 2
+unique_name_in_owner = true
+
+[node name="chart_price" type="Label" parent="area/content/chart_panel/content/header"]
+text = "—"
+theme_type_variation = "AccentLabel"
+theme_override_font_sizes/font_size = 18
+mouse_filter = 2
+unique_name_in_owner = true
+
+[node name="chart" type="Control" parent="area/content/chart_panel/content"]
+custom_minimum_size = Vector2(0, 180)
+size_flags_vertical = 3
+mouse_filter = 2
+script = ExtResource("3")
 unique_name_in_owner = true
 
 [node name="scroll" type="ScrollContainer" parent="area/content"]
@@ -111,7 +144,7 @@ theme_type_variation = "ChromePanel"
 theme_override_constants/separation = 16
 
 [node name="market_note" type="Label" parent="footer/content"]
-text = "prices update every ten real-world minutes · bullish and bearish runs can persist for hours"
+text = "30-minute live chart · quotes every 15 seconds · bullish and bearish regimes usually persist for several minutes"
 mouse_filter = 2
 size_flags_horizontal = 3
 theme_type_variation = "MutedLabel"
