@@ -149,18 +149,18 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 	float smudge_strength = smoothstep(0.57, 0.83, broad_smudge_noise) * mix(0.6, 1.0, smudge_detail_noise); // Combines broad and fine noise into soft oily-smudge zones reminiscent of fingerprints.
 	float micro_roughness = (micro_rough_noise - 0.5) * 0.10; // Converts the fine grain signal into a small signed roughness perturbation.
 	if (FRONT_FACING) { // Selects the printed front face when the artwork side is visible.
-		if (special_edition) { // Gives special copies a physically metallic gold front while preserving the artwork through value structure.
+		if (special_edition) { // Gives special copies a glossy gold-metal front while retaining enough diffuse response to remain readable under compatibility lighting.
 			float artwork_value = dot(artwork.rgb, vec3(0.299, 0.587, 0.114)); // Converts the original art into luminance so details remain readable after the gold material replacement.
-			vec3 dark_gold = vec3(0.18, 0.055, 0.004); // Defines the deep bronze-gold used by dark artwork regions.
-			vec3 bright_gold = vec3(1.0, 0.58, 0.055); // Defines the bright saturated metal colour used by light artwork regions.
-			vec3 gold_albedo = mix(dark_gold, bright_gold, smoothstep(0.05, 0.95, artwork_value)); // Maps the complete original value range into a readable gold-metal palette.
-			gold_albedo *= 1.0 - scratch_darkening * 0.35; // Preserves subtle physical wear without making the rare edition look dull.
-			gold_albedo += vec3(0.08, 0.045, 0.006) * scratch_edge; // Lets scratches catch warm metallic highlights.
-			ALBEDO = clamp(gold_albedo, vec3(0.0), vec3(1.0)); // Writes the gold base colour used by Godot's PBR metal response.
-			METALLIC = 1.0; // Makes the special front a true conductor-like metal surface rather than a yellow plastic tint.
-			ROUGHNESS = clamp(0.075 + micro_roughness * 0.20 + scratch_matte * 0.20 + scuff_strength * 0.025, 0.035, 0.22); // Keeps broad reflections very sharp while retaining tiny handling variation.
-			SPECULAR = 0.90; // Keeps the rare edition strongly reflective under the existing shop and book lighting.
-			EMISSION = gold_albedo * 0.018; // Adds only a tiny warm lift so gold details remain legible in darker parts of the scene without looking self-lit.
+			vec3 dark_gold = vec3(0.34, 0.12, 0.015); // Keeps dark artwork regions visibly bronze-gold instead of collapsing toward black.
+			vec3 bright_gold = vec3(1.0, 0.72, 0.16); // Gives light artwork regions a bright warm polished-gold response.
+			vec3 gold_albedo = mix(dark_gold, bright_gold, smoothstep(0.03, 0.97, artwork_value)); // Maps the complete original value range into a readable gold palette.
+			gold_albedo *= 1.0 - scratch_darkening * 0.24; // Preserves subtle physical wear without crushing shadow values.
+			gold_albedo += vec3(0.10, 0.055, 0.010) * scratch_edge; // Lets scratches catch warm metallic highlights.
+			ALBEDO = clamp(gold_albedo, vec3(0.0), vec3(1.0)); // Writes the gold base colour used by Godot's combined diffuse and metal response.
+			METALLIC = 0.68; // Keeps the surface convincingly metallic while retaining enough diffuse energy for the compatibility renderer and flat scene lighting.
+			ROUGHNESS = clamp(0.16 + micro_roughness * 0.18 + scratch_matte * 0.18 + scuff_strength * 0.035, 0.10, 0.34); // Produces broad readable highlights instead of reflection-only black regions.
+			SPECULAR = 0.88; // Keeps strong polished highlights under direct shop, book, and inspection lights.
+			EMISSION = gold_albedo * 0.075; // Provides a restrained illumination-independent gold floor so the material never becomes visually black in weak reflection environments.
 		} else { // Preserves the established printed-laminate response for ordinary copies.
 			float fingerprint_gloss = smudge_strength * 0.18; // Makes oily-touch areas slightly glossier and smoother than untouched laminate.
 			float scuff_matte = scuff_strength * 0.08; // Adds a faint extra roughness lift for generalized rub wear.
