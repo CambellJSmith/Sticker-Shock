@@ -15,13 +15,14 @@ var _artwork_size: Vector2 = Vector2.ONE # Stores the requested physical dimensi
 var _normalized_silhouette_points: PackedVector2Array = PackedVector2Array() # Stores the visible artwork contour in centered normalized coordinates for exact peel-detachment support tests.
 var _material: ShaderMaterial # Stores the per-sticker shader parameters without duplicating shader code.
 
-func configure(sticker_size: Vector2, sticker_texture: Texture2D) -> void: # Builds the static grid and binds the artwork used by this sticker.
+func configure(sticker_size: Vector2, sticker_texture: Texture2D, special_edition: bool = false) -> void: # Builds the static grid and binds artwork plus this copy's normal-or-special material state.
 	_artwork_size = Vector2(maxf(sticker_size.x, 0.001), maxf(sticker_size.y, 0.001)) # Protects procedural geometry from invalid zero-sized sticker dimensions.
 	_normalized_silhouette_points = _get_normalized_silhouette_points(sticker_texture) # Retrieves the cached real alpha contour used to know the exact frame the last attached material leaves the page.
 	mesh = _build_grid_mesh() # Creates the permanent subdivided surface used by GPU deformation.
 	_material = ShaderMaterial.new() # Creates a unique parameter set for this sticker instance.
 	_material.shader = STICKER_SHADER # Binds the shared realistic peel shader to the instance material.
 	_material.set_shader_parameter("sticker_texture", sticker_texture) # Supplies the printed artwork to the shader.
+	_material.set_shader_parameter("special_edition", special_edition) # Switches only this physical copy into the shiny gold-metal front treatment when required.
 	_material.set_shader_parameter("curl_width", PEEL_CURL_WIDTH) # Keeps the shader curl geometry synchronized with the interaction model.
 	_material.set_shader_parameter("curl_growth", PEEL_CURL_GROWTH) # Keeps the shader curl-growth rule synchronized with the full-peel threshold.
 	_material.set_shader_parameter("alpha_cutoff", ALPHA_CUTOFF) # Keeps CPU silhouette extraction synchronized with the fragment shader's visible-material threshold.
@@ -111,7 +112,7 @@ func _build_grid_mesh() -> ArrayMesh: # Creates a fixed tessellated plane coveri
 	for row: int in range(GRID_ROWS): # Walks each grid cell vertically to create indexed triangles.
 		for column: int in range(GRID_COLUMNS): # Walks each grid cell horizontally to create indexed triangles.
 			var top_left: int = row * vertex_columns + column # Finds the upper-left vertex of the current cell.
-			var top_right: int = top_left + 1 # Finds the upper-right vertex of the current cell.
+			var top_right: int = top_left + 1 # Finds the upper-right vertex of the first triangle.
 			var bottom_left: int = top_left + vertex_columns # Finds the lower-left vertex of the current cell.
 			var bottom_right: int = bottom_left + 1 # Finds the lower-right vertex of the current cell.
 			indices.append(top_left) # Begins the first clockwise triangle in the cell.
