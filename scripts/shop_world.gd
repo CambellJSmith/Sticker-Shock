@@ -44,6 +44,10 @@ func redeem_unique_code(code: String) -> String: # Redeems one exact case-sensit
 func show_reward(paths: PackedStringArray, animate_throw: bool) -> void: # Rebuilds a transient collection reward reveal while preserving each exact edition.
 	_clear_reveal() # Retires physical sheets belonging to the previous reveal.
 	_revealed_paths = paths.duplicate() # Keeps an independent transient copy of the collected edition identities.
+	if animate_throw and not _revealed_paths.is_empty(): # Treats only a newly committed gameplay reward as an achievement synchronization point, not empty setup or restored presentation.
+		SteamAchievements.sync_progress() # Re-evaluates collection, rarity, pack, Unique, duplicate, and premium-edition rules after authoritative ownership has already been persisted.
+		if _economy != null and _revealed_paths.size() == _economy.get_pack_size(): # Identifies a complete normal/free pack by the same dynamic pack-size authority used by the transaction code.
+			SteamAchievements.report_pack_opened() # Persists first-pack history so the achievement remains recoverable even if every pack sticker is sold later.
 	var global_targets: Array[Vector3] = [] # Aligns native result labels with the physical reveal anchors.
 	for index: int in range(_revealed_paths.size()): # Creates a separate sheet for each collected copy.
 		var sticker_key: String = _revealed_paths[index] # Reads this copy's exact inventory identity.
