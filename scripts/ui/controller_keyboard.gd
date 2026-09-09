@@ -1,7 +1,7 @@
 class_name ControllerKeyboard
 extends Control
 
-const CHARACTER_ROWS: Array[String] = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM", "-_'&."] # Defines every character needed for sticker names, Unique codes, and collection searches without a physical keyboard.
+const CHARACTER_ROWS: Array[String] = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM", "`~!@#$%^&*", "()-_=+[]{}", ";:',.<>/?", "\\|&"] # Covers letters, digits, spaces, and the practical ASCII punctuation accepted by arbitrary sticker names, Unique codes, and collection searches.
 
 @onready var _rows: VBoxContainer = %key_rows as VBoxContainer # Hosts generated character rows while the surrounding modal layout remains editor-authored.
 @onready var _preview: Label = %preview as Label # Shows the exact text that will be committed to the target LineEdit.
@@ -78,7 +78,7 @@ func _build_character_rows() -> void: # Creates repetitive controller character 
 			key.focus_mode = Control.FOCUS_ALL # Explicitly includes generated keys in UIFocus controller traversal.
 			key.bind_action(_append_character.bind(base_character)) # Appends this key's current case-transformed character when activated.
 			row.add_child(key) # Adds the interactive key to its responsive row before storing metadata.
-			_character_buttons.append(key) # Retains the key for case-label refresh and deterministic focus.
+			_character_buttons.append(key) # Retains the key for future case-label refresh and deterministic focus.
 			_base_characters[key.get_instance_id()] = base_character # Stores the canonical character independently from the visible case label.
 
 func _append_character(base_character: String) -> void: # Adds one controller-selected character while respecting any native LineEdit length limit.
