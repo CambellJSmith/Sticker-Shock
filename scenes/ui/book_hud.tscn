@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/book_hud.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="2"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/left.svg" id="3"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/right.svg" id="4"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/peel_target.svg" id="5"]
 
 [node name="book_hud" type="Control"]
 layout_mode = 1
@@ -46,6 +47,16 @@ offset_right = 12.0
 offset_bottom = 12.0
 color = Color(0.98, 0.91, 0.82, 1)
 mouse_filter = 2
+
+[node name="peel_target" type="TextureRect" parent="."]
+offset_right = 36.0
+offset_bottom = 36.0
+visible = false
+mouse_filter = 2
+z_index = 101
+texture = ExtResource("5")
+expand_mode = 1
+unique_name_in_owner = true
 
 [node name="footer" type="PanelContainer" parent="."]
 anchor_top = 1.0
