@@ -40,7 +40,7 @@ theme_type_variation = "HeadingLabel"
 theme_override_font_sizes/font_size = 28
 
 [node name="subtitle" type="Label" parent="area/content"]
-text = "rarity sets the baseline. demand moves the price. gold specials command an enormous premium."
+text = "rarity sets the baseline. demand moves the price. rainbow, silver and gold editions add escalating premiums."
 mouse_filter = 2
 theme_type_variation = "MutedLabel"
 autowrap_mode = 2
