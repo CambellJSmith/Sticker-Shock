@@ -5,11 +5,9 @@ const GUARANTEED_RAINBOW_PULL_NUMBER: int = 25 # Guarantees the first milestone 
 const GUARANTEED_SILVER_PULL_NUMBER: int = 50 # Guarantees the silver edition on the player's fiftieth pack sticker pull.
 const GUARANTEED_GOLD_PULL_NUMBER: int = 100 # Guarantees the rarest gold edition on the player's one-hundredth pack sticker pull.
 const COUNTER_SAVE_PATH: String = "user://sticker_special_counter.json" # Stores lifetime pack-pull milestone progress independently from the compatible economy save.
-const MIN_DYNAMIC_PACK_PRICE: int = 75 # Prevents temporary market crashes from making a five-sticker pack trivial to buy.
+const MIN_DYNAMIC_PACK_PRICE: int = 5 # Keeps every purchasable pack at a positive readable price without overriding depressed-market resale economics.
 const MAX_DYNAMIC_PACK_PRICE: int = 650 # Prevents extreme bullish spikes from making any authored pack effectively inaccessible.
-const PACK_EXPECTED_VALUE_MARKUP: float = 1.28 # Makes immediate average-value liquidation a losing trade while leaving room for speculative profit.
-const PACK_UPSIDE_WEIGHT: float = 0.015 # Lets the best possible premium hit influence price without dominating ordinary expected value.
-const PACK_UPSIDE_CAP_RATIO: float = 0.18 # Caps jackpot contribution relative to expected pack value so one Legendary cannot distort the whole shop.
+const PACK_TARGET_RESALE_RETURN: float = 1.12 # Prices packs below current expected resale value so repeated buying and selling has a modest positive long-run return before market timing.
 const PRICE_ROUNDING_STEP: int = 5 # Keeps rapidly changing market-linked shop prices readable in whole five-pound increments.
 const RANDOM_EDITION_EXPECTED_MULTIPLIER: float = (1.0 - StickerVariant.RAINBOW_PULL_CHANCE - StickerVariant.SILVER_PULL_CHANCE - StickerVariant.GOLD_PULL_CHANCE) + StickerVariant.RAINBOW_PULL_CHANCE * BalancedStickerMarket.RAINBOW_VALUE_MULTIPLIER + StickerVariant.SILVER_PULL_CHANCE * BalancedStickerMarket.SILVER_VALUE_MULTIPLIER + StickerVariant.GOLD_PULL_CHANCE * BalancedStickerMarket.GOLD_VALUE_MULTIPLIER # Converts normal pull EV into edition-aware resale EV without pricing in one-time guarantees.
 
@@ -63,10 +61,9 @@ func sell_owned_copy(sticker_key: String, sale_price: int) -> bool: # Removes ex
 	_save() # Persists inventory removal and currency credit together so quitting cannot split the transaction.
 	return true # Confirms that one exact edition copy was sold and paid successfully.
 
-func _calculate_dynamic_pack_price(pack_name: String) -> int: # Prices one authored pack from its current weighted resale EV plus bounded jackpot potential.
+func _calculate_dynamic_pack_price(pack_name: String) -> int: # Prices one authored pack below its current weighted resale EV so the buy-sell loop is sustainable over many random packs.
 	var rarity_price_totals: Dictionary[String, float] = {} # Accumulates current normal-edition market prices within each represented rarity.
 	var rarity_counts: Dictionary[String, int] = {} # Counts designs in each rarity so same-rarity sticker selection remains uniform.
-	var highest_gold_quote: int = 0 # Tracks the best currently possible one-copy gold payout from this pack.
 	for index: int in range(_pricing_catalog.get_sticker_count()): # Scans each authored design once because catalogue sizes are small and shop refresh is throttled.
 		var sticker_path: String = _pricing_catalog.get_sticker_path(index) # Reads the normal authored identity for this design.
 		if _pricing_catalog.get_pack_name(sticker_path) != pack_name: # Excludes stickers belonging to other authored packs.
@@ -77,8 +74,6 @@ func _calculate_dynamic_pack_price(pack_name: String) -> int: # Prices one autho
 		var normal_quote: int = _pricing_market.get_price(sticker_path, _pricing_catalog) # Reads the exact current normal resale quote for this design.
 		rarity_price_totals[rarity_name] = float(rarity_price_totals.get(rarity_name, 0.0)) + float(normal_quote) # Adds this design to its rarity's average-value pool.
 		rarity_counts[rarity_name] = int(rarity_counts.get(rarity_name, 0)) + 1 # Counts the design for uniform within-rarity selection.
-		var gold_key: String = StickerVariant.make_edition_key(sticker_path, StickerVariant.EDITION_GOLD) # Builds the rarest exact edition that could be pulled from this design.
-		highest_gold_quote = maxi(highest_gold_quote, _pricing_market.get_price(gold_key, _pricing_catalog)) # Retains the pack's current single-sticker jackpot ceiling.
 	var total_available_weight: float = 0.0 # Re-normalizes rarity odds around rarities actually represented in this authored pack.
 	for rarity_name: String in StickerCatalog.RARITY_WEIGHTS.keys(): # Visits the fixed normal rarity distribution.
 		if rarity_counts.has(rarity_name): # Includes only rarities with at least one sticker in this pack.
@@ -93,10 +88,9 @@ func _calculate_dynamic_pack_price(pack_name: String) -> int: # Prices one autho
 		var rarity_probability: float = float(StickerCatalog.RARITY_WEIGHTS[rarity_name]) / total_available_weight # Converts configured weight into this pack's actual pull probability.
 		expected_normal_pull_value += rarity_average * rarity_probability # Adds this rarity's contribution to one pull's expected normal resale value.
 	var expected_pack_value: float = expected_normal_pull_value * float(PACK_SIZE) * RANDOM_EDITION_EXPECTED_MULTIPLIER # Includes all five slots and ordinary random rainbow/silver/gold odds.
-	var upside_premium: float = minf(float(highest_gold_quote) * PACK_UPSIDE_WEIGHT, expected_pack_value * PACK_UPSIDE_CAP_RATIO) # Gives current jackpot potential bounded influence over retail price.
-	var raw_price: float = expected_pack_value * PACK_EXPECTED_VALUE_MARKUP + upside_premium # Adds the house margin needed to prevent immediate positive-EV liquidation.
-	var rounded_price: int = int(round(raw_price / float(PRICE_ROUNDING_STEP))) * PRICE_ROUNDING_STEP # Produces stable readable five-pound price steps instead of noisy single-pound flicker.
-	return clampi(rounded_price, MIN_DYNAMIC_PACK_PRICE, MAX_DYNAMIC_PACK_PRICE) # Enforces accessible lower and upper limits during extreme markets.
+	var raw_price: float = expected_pack_value / PACK_TARGET_RESALE_RETURN # Leaves the configured expected resale margin with the player instead of adding a house markup.
+	var rounded_price: int = floori(raw_price / float(PRICE_ROUNDING_STEP)) * PRICE_ROUNDING_STEP # Rounds downward so five-pound presentation steps can never erase the intended positive expected return.
+	return clampi(rounded_price, MIN_DYNAMIC_PACK_PRICE, MAX_DYNAMIC_PACK_PRICE) # Keeps the price positive and caps only extreme bullish markets without imposing a loss-making crash floor.
 
 func _apply_special_rolls(base_pack: PackedStringArray) -> PackedStringArray: # Converts authored pulls into explicit normal, rainbow, silver, or gold copy identities.
 	var result: PackedStringArray = PackedStringArray() # Stores the exact edition identity for each real pull in original reveal order.
