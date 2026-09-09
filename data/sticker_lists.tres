@@ -4,6 +4,6 @@
 
 [resource]
 script = ExtResource("1_lists")
-packs = PackedStringArray(["Base", "Pretty And Paranormal", "Cannibal's Dream", "Adorably Undead", "PrimeDuel", "Cheeky Chappies"])
+packs = PackedStringArray(["Base", "Pretty And Paranormal", "Cannibal's Dream", "Adorably Undead", "PrimeDuel", "Cheeky Chappies", "Periodicity"])
 artists = PackedStringArray(["Cambell", "WikiMedia"])
 rarities = PackedStringArray(["Common", "Uncommon", "Rare", "Elite", "Legendary", "Unique"])
