@@ -4,7 +4,7 @@ extends GameController
 const MARKET_WORLD_SCENE: PackedScene = preload("res://scenes/market_world.tscn") # Preloads the physically separate collector exchange as a persistent third gameplay world.
 const MARKET_WORLD_OFFSET: Vector3 = Vector3(2000.0, 0.0, 0.0) # Places the exchange far from book and pack-shop physics inside the shared World3D.
 
-var _market: StickerMarket = EditionStickerMarket.new() # Owns persistent real-world quotes while scaling rainbow, silver, and gold premiums by scarcity.
+var _market: StickerMarket = BalancedStickerMarket.new() # Owns the balanced live market used by both selling and market-linked pack pricing.
 var _market_world: MarketWorld # Stores the long-lived physical collector exchange scene for the complete application session.
 
 func _init() -> void: # Replaces only the economy and sticker silhouette solver with edition-aware implementations before normal game initialization begins.
@@ -13,11 +13,14 @@ func _init() -> void: # Replaces only the economy and sticker silhouette solver 
 
 func _ready() -> void: # Composes the established game first, then adds persistent live market state and its physically separate exchange world.
 	super._ready() # Initializes catalogue, economy, book, pack shop, preferences, shared interface, and startup menu through the established coordinator.
-	_market.initialize(_catalog) # Restores persistent design-level market trends and catches quotes up to the current real-world ten-minute tick.
+	_market.initialize(_catalog) # Restores persistent live trends and applies the current balanced resale-value scale.
+	var special_economy: GuaranteedSpecialStickerEconomy = _economy as GuaranteedSpecialStickerEconomy # Narrows the configured economy before enabling live pack pricing.
+	if special_economy != null: # Protects startup if a future controller configures a different economy implementation.
+		special_economy.configure_market_pricing(_market, _catalog) # Makes each authored pack price follow its current expected market value and bounded jackpot potential.
 	_market_world = MARKET_WORLD_SCENE.instantiate() as MarketWorld # Instantiates the collector exchange once so navigation never rebuilds its controls or physical set.
 	_world_root.add_child(_market_world) # Parents the third world beside the established book and pack shop in the shared World3D.
 	_market_world.position = MARKET_WORLD_OFFSET # Separates all market geometry, lights, and interaction coordinates from the other physical destinations.
-	_market_world.configure(self, _economy as GuaranteedSpecialStickerEconomy, _catalog, _market, get_available_collection_count) # Binds edition-aware ownership, live quotes, and the physical-copy availability rule to the exchange.
+	_market_world.configure(self, special_economy, _catalog, _market, get_available_collection_count) # Binds edition-aware ownership, balanced live quotes, and the physical-copy availability rule to the exchange.
 	_market_world.set_active(false) # Leaves the exchange dormant while the startup menu remains the initial presentation owner.
 
 func show_main_menu() -> void: # Returns to the startup menu while deactivating the optional exchange world when it already exists.

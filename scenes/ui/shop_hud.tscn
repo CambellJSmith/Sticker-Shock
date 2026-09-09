@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scripts/ui/shop_hud.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/market_priced_shop_hud.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/ui/pack.svg" id="2"]
 [ext_resource type="Script" path="res://scripts/ui/game_button.gd" id="3"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift.svg" id="4"]
@@ -95,7 +95,7 @@ theme_type_variation = "AccentLabel"
 unique_name_in_owner = true
 
 [node name="buy_button" type="Button" parent="area/content/offer_center/offers/standard/content"]
-text = "open pack · 100 coins"
+text = "open pack · £100"
 script = ExtResource("3")
 mouse_default_cursor_shape = 2
 custom_minimum_size = Vector2(0, 44)
