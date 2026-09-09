@@ -10,7 +10,7 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
     python3 -m venv "$VENV_DIR"
 fi
 
-if ! "$PYTHON_BIN" -c "from PIL import Image; import torch, transformers, huggingface_hub, accelerate, safetensors" >/dev/null 2>&1; then
+if ! "$PYTHON_BIN" -c "from PIL import Image" >/dev/null 2>&1; then
     echo "Installing Sticker Creator dependencies into its local environment..."
     "$PYTHON_BIN" -m pip install --upgrade pip
     "$PYTHON_BIN" -m pip install -r "$SCRIPT_DIR/requirements.txt"
