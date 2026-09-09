@@ -7,11 +7,12 @@ var _visual: StickerMesh # Stores the full realistic artwork-defined front-face 
 var _landing_preview: StickerLandingPreview # Stores the faint exact alpha-silhouette projection showing where the upright manual sticker will land.
 var _valid: bool = false # Stores whether the current pointer position lies on a usable page and can be committed.
 
-func configure(sticker_size: Vector2, sticker_texture: Texture2D, special_edition: bool = false) -> void: # Builds the floating physical sticker and its exact page-projected landing silhouette for the selected edition.
+func configure(sticker_size: Vector2, sticker_texture: Texture2D, sticker_key: String = "") -> void: # Builds the floating physical sticker and applies the exact saved edition finish.
 	_visual = StickerMesh.new() # Creates the same artwork-defined material surface used by normal interactive stickers.
 	_visual.name = "visual" # Gives the preview renderer a readable runtime tree name.
 	add_child(_visual) # Parents the renderer under the movable placement-preview composition.
-	_visual.configure(sticker_size, sticker_texture, special_edition) # Builds the printed front, reverse, physical sheet geometry, and optional gold-metal special treatment.
+	_visual.configure(sticker_size, sticker_texture, false) # Builds the printed front, reverse, and physical sheet geometry without using the legacy boolean special path.
+	StickerVariant.apply_material(_visual, sticker_key) # Applies normal, rainbow, silver, or gold from the exact collection copy identity.
 	_landing_preview = StickerLandingPreview.new() # Creates the exact projected alpha-outline component used for landing prediction.
 	_landing_preview.name = "landing_preview" # Gives the projected helper a readable runtime tree name.
 	add_child(_landing_preview) # Keeps lifecycle ownership with the placement preview while the outline itself remains top-level in world space.
