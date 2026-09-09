@@ -1,6 +1,16 @@
 {
-  "packs": [],
-  "artists": [],
+  "packs": [
+    "Base",
+    "Pretty And Paranormal",
+    "Cannibal's Dream",
+    "Adorably Undead",
+    "PrimeDuel",
+    "Cheeky Chappies"
+  ],
+  "artists": [
+    "Cambell",
+    "WikiMedia"
+  ],
   "rarities": [
     "Common",
     "Uncommon",
