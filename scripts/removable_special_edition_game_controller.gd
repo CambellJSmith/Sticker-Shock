@@ -5,6 +5,10 @@ func _init() -> void: # Extends the established premium/market/free-pack composi
 	super() # Preserves banked free packs, market-linked pricing, premium guarantees, and edition-aware auto packing.
 	_book_state = RemovableStickerBookState.new() # Replaces only physical book persistence with the compatible removable implementation.
 
+func is_controller_input_active() -> bool: # Exposes the persistent UI's most-recent-input mode to physical worlds without coupling them to CanvasLayer internals.
+	var market_game_ui: MarketGameUI = _game_ui as MarketGameUI # Narrows the configured application UI to the controller-aware concrete implementation used by the main scene.
+	return market_game_ui != null and market_game_ui.is_controller_input_active() # Reports controller ownership only after the persistent UI exists and has observed deliberate gamepad input.
+
 func begin_collection_placement(sticker_path: String) -> bool: # Starts collection placement only after releasing any abandoned reservation from an earlier cancelled attempt.
 	_release_abandoned_collection_reservation() # Repairs stale reservation state before checking whether this exact owned copy is available.
 	var started: bool = super.begin_collection_placement(sticker_path) # Uses the established fit check, reservation, preview construction, and book transition.
