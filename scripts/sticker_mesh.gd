@@ -26,8 +26,9 @@ func configure(sticker_size: Vector2, sticker_texture: Texture2D, special_editio
 	_material.set_shader_parameter("curl_width", PEEL_CURL_WIDTH) # Keeps the shader curl geometry synchronized with the interaction model.
 	_material.set_shader_parameter("curl_growth", PEEL_CURL_GROWTH) # Keeps the shader curl-growth rule synchronized with the full-peel threshold.
 	_material.set_shader_parameter("alpha_cutoff", ALPHA_CUTOFF) # Keeps CPU silhouette extraction synchronized with the fragment shader's visible-material threshold.
-	_material.set_shader_parameter("surface_detail_offset", _build_surface_detail_offset()) # Gives each sticker copy a slightly different smudge and scratch layout.
-	_material.set_shader_parameter("surface_detail_rotation", _build_surface_detail_rotation()) # Rotates the procedural realism texture so duplicates do not look stamped from the same wear pattern.
+	var surface_detail_seed: float = _build_surface_detail_seed() # Resolves a persistent book-placement identity when available and otherwise preserves runtime per-copy variation.
+	_material.set_shader_parameter("surface_detail_offset", _build_surface_detail_offset(surface_detail_seed)) # Offsets grease and smudges uniquely while keeping saved book stickers visually stable across reconstruction.
+	_material.set_shader_parameter("surface_detail_rotation", _build_surface_detail_rotation(surface_detail_seed)) # Rotates handling residue from the same persistent seed so duplicate designs retain distinct physical surface identities.
 	material_override = _material # Applies the material to the complete grid with one draw surface.
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED # Allows the lifted sticker to cast a real moving shadow on the page.
 	custom_aabb = AABB(Vector3(-_artwork_size.x, -0.5, -_artwork_size.y), Vector3(_artwork_size.x * 2.0, 3.0, _artwork_size.y * 2.0)) # Prevents frustum culling while peeled vertices or the carried sheet move outside the original flat bounds.
@@ -131,15 +132,28 @@ func _build_grid_mesh() -> ArrayMesh: # Creates a fixed tessellated plane coveri
 	array_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays) # Commits the complete tessellated sticker as one efficient triangle surface.
 	return array_mesh # Returns the finished static grid ready for shader deformation.
 
-func _build_surface_detail_offset() -> Vector2: # Builds a deterministic-looking procedural-detail offset so sticker wear does not repeat perfectly across copies.
-	var instance_seed: float = float(get_instance_id()) # Uses the runtime node identity as cheap per-copy entropy without any global random generator state.
-	var offset_x: float = _hash_float(instance_seed * 0.173 + 11.0) # Produces one stable pseudo-random horizontal offset for the realism texture.
-	var offset_y: float = _hash_float(instance_seed * 0.379 + 37.0) # Produces one stable pseudo-random vertical offset for the realism texture.
-	return Vector2(offset_x, offset_y) * 8.0 - Vector2.ONE * 4.0 # Spreads the procedural wear pattern broadly so duplicates do not share the same fingerprint placement.
+func _build_surface_detail_seed() -> float: # Resolves the identity used to generate this copy's grease and smudge pattern.
+	var parent_node: Node = get_parent() # Reads the owning Sticker node whose book reconstruction name contains its persistent placement identity.
+	if parent_node != null: # Checks for a composed Sticker owner before attempting to inspect its identity.
+		var persistent_identity: String = str(parent_node.name) # Reads the owner name without introducing another persisted field or save-version migration.
+		if persistent_identity.begins_with("sticker_"): # Recognizes the stable placement identifiers already written into sticker-book saves.
+			return float(_hash_surface_identity(persistent_identity)) # Converts the persistent identity into deterministic procedural entropy that survives node reconstruction.
+	return float(get_instance_id()) # Keeps non-book previews, shop sheets, and other temporary sticker meshes independently varied at runtime.
 
-func _build_surface_detail_rotation() -> float: # Builds one per-copy procedural-detail rotation so scratches and smudges vary between sticker instances.
-	var instance_seed: float = float(get_instance_id()) # Reuses the runtime identity to avoid synchronized detail orientation across duplicates.
-	return _hash_float(instance_seed * 0.613 + 73.0) * TAU # Converts a normalized pseudo-random value into a full-angle rotation in radians.
+func _hash_surface_identity(identity: String) -> int: # Produces a stable integer hash from a persistent placement identifier without depending on runtime object identity.
+	var hash_value: int = 2166136261 # Seeds the lightweight FNV-style hash with a fixed non-zero basis.
+	var identity_bytes: PackedByteArray = identity.to_utf8_buffer() # Converts the short placement identifier once so hashing remains independent of locale or platform text representation.
+	for byte_value: int in identity_bytes: # Mixes every identifier byte exactly once during sticker configuration.
+		hash_value = ((hash_value ^ byte_value) * 16777619) & 0x7fffffff # Keeps the deterministic result positive and safely representable when converted to a floating-point procedural seed.
+	return hash_value # Returns the persistent per-placement seed shared by every reconstruction of this physical sticker.
+
+func _build_surface_detail_offset(surface_seed: float) -> Vector2: # Builds a procedural handling offset from either persistent placement identity or temporary runtime identity.
+	var offset_x: float = _hash_float(surface_seed * 0.173 + 11.0) # Produces one deterministic horizontal offset for the grease texture.
+	var offset_y: float = _hash_float(surface_seed * 0.379 + 37.0) # Produces one deterministic vertical offset for the grease texture.
+	return Vector2(offset_x, offset_y) * 8.0 - Vector2.ONE * 4.0 # Spreads handling patterns broadly so duplicate sticker designs do not share the same residue placement.
+
+func _build_surface_detail_rotation(surface_seed: float) -> float: # Builds one procedural handling rotation from the same per-copy identity used by the offset.
+	return _hash_float(surface_seed * 0.613 + 73.0) * TAU # Converts a deterministic pseudo-random value into a full-angle rotation in radians.
 
 func _hash_float(seed: float) -> float: # Generates a cheap deterministic pseudo-random scalar in the zero-to-one range without allocating a RandomNumberGenerator.
 	var hashed_value: float = sin(seed) * 43758.5453123 # Produces the signed pseudo-random source value used by the lightweight per-instance hash.
