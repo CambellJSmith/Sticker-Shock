@@ -58,7 +58,19 @@ theme_type_variation = "HeadingLabel"
 theme_override_font_sizes/font_size = 21
 unique_name_in_owner = true
 
-[node name="sell_button" type="Button" parent="content"]
+[node name="actions" type="VBoxContainer" parent="content"]
+custom_minimum_size = Vector2(150, 0)
+theme_override_constants/separation = 6
+
+[node name="chart_button" type="Button" parent="content/actions"]
+custom_minimum_size = Vector2(150, 32)
+text = "view chart"
+script = ExtResource("2")
+mouse_default_cursor_shape = 2
+theme_type_variation = "QuietButton"
+unique_name_in_owner = true
+
+[node name="sell_button" type="Button" parent="content/actions"]
 custom_minimum_size = Vector2(150, 44)
 text = "sell one"
 script = ExtResource("2")
