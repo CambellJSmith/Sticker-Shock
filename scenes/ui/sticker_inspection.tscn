@@ -50,9 +50,10 @@ mouse_filter = 2
 
 [node name="close" type="Button" parent="top_bar/content"]
 layout_mode = 2
+size_flags_vertical = 4
 script = ExtResource("3_button")
 mouse_default_cursor_shape = 2
-custom_minimum_size = Vector2(92, 0)
+custom_minimum_size = Vector2(92, 42)
 text = "close · esc"
 
 [node name="stage" type="Control" parent="."]
@@ -146,6 +147,7 @@ mouse_filter = 2
 
 [node name="zoom_out" type="Button" parent="bottom_bar"]
 layout_mode = 2
+size_flags_vertical = 4
 script = ExtResource("3_button")
 mouse_default_cursor_shape = 2
 custom_minimum_size = Vector2(46, 42)
@@ -153,7 +155,8 @@ text = "−"
 
 [node name="zoom_label" type="Label" parent="bottom_bar"]
 layout_mode = 2
-custom_minimum_size = Vector2(70, 0)
+size_flags_vertical = 4
+custom_minimum_size = Vector2(70, 42)
 text = "1.00x"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -161,6 +164,7 @@ mouse_filter = 2
 
 [node name="zoom_in" type="Button" parent="bottom_bar"]
 layout_mode = 2
+size_flags_vertical = 4
 script = ExtResource("3_button")
 mouse_default_cursor_shape = 2
 custom_minimum_size = Vector2(46, 42)
@@ -168,6 +172,7 @@ text = "+"
 
 [node name="reset" type="Button" parent="bottom_bar"]
 layout_mode = 2
+size_flags_vertical = 4
 script = ExtResource("3_button")
 mouse_default_cursor_shape = 2
 custom_minimum_size = Vector2(92, 42)
