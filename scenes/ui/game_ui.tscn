@@ -121,7 +121,6 @@ text = "main menu"
 script = ExtResource("4")
 mouse_default_cursor_shape = 2
 alignment = 0
-toggle_mode = true
 theme_type_variation = "NavButton"
 icon = ExtResource("8")
 custom_minimum_size = Vector2(0, 44)
