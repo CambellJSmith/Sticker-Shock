@@ -48,6 +48,9 @@ func refresh() -> void: # Updates only lightweight market and ownership fields f
 func get_sticker_key() -> String: # Exposes the immutable row identity to the market HUD cache.
 	return _sticker_key # Returns the exact normal-or-special edition key represented by this row.
 
+func focus_sell() -> void: # Gives native focus to this row's sell action without exposing its editor-authored child path to parent components.
+	_sell_button.grab_focus() # Selects the row's one actionable transaction control for keyboard and controller navigation.
+
 func _sell_one() -> void: # Sells exactly one currently available copy at the quote shown by the live market model.
 	if not _sell.is_valid() or _sell_button.disabled: # Rejects invalid callbacks and exhausted inventory before attempting a transaction.
 		return # Leaves the row unchanged when no authoritative sale can occur.
