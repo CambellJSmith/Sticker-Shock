@@ -1,6 +1,7 @@
 from __future__ import annotations # Supports typed source-store regression fixtures.
 
 import sys # Makes standalone tool modules available during repository-root discovery.
+import json # Writes a pre-threshold recipe to verify upgrade behavior for existing authored stickers.
 import unittest # Supplies dependency-free persistence regression tests.
 from pathlib import Path # Creates isolated source and output directories.
 from tempfile import TemporaryDirectory # Keeps generated fixtures outside repository artwork.
@@ -10,7 +11,7 @@ from PIL import Image, ImageDraw # Creates small deterministic source PNGs.
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1])) # Matches the standalone launcher's module lookup.
 from sticker_art_store import StickerArtStore, replace_files # Exercises the authoring store's public persistence API.
-from sticker_border import BorderSettings # Supplies reproducible border recipes.
+from sticker_border import ALPHA_THRESHOLD, BorderSettings # Supplies reproducible border recipes and the persisted cleanup marker.
 
 
 class StickerArtStoreTests(unittest.TestCase): # Protects original pixels, edit idempotence, and complete save behaviour.
@@ -68,13 +69,33 @@ class StickerArtStoreTests(unittest.TestCase): # Protects original pixels, edit 
         replace_files(self.store.prepare(1, replacement, self.destination, self.settings, self.destination)) # Replaces runtime artwork and original source in one save.
         self.assertEqual(self.store.load(1, self.destination)[0].read_bytes(), replacement.read_bytes()) # Requires later border edits to start from the replacement pixels.
 
-    def test_legacy_metadata_edit_preserves_runtime_bytes(self) -> None: # Keeps existing stickers visually unchanged until their border is explicitly edited.
+    def test_legacy_metadata_edit_writes_thresholded_runtime_art(self) -> None: # Upgrades existing runtime-only stickers while preserving their archived source bytes.
         self.destination.parent.mkdir(parents=True) # Creates a runtime-only legacy sticker without authoring records.
-        self.destination.write_bytes(self.source.read_bytes()) # Represents the artwork saved by an earlier version of the tool.
+        original: bytes = self.source.read_bytes() # Captures the legacy PNG before the tool archives it.
+        self.destination.write_bytes(original) # Represents the artwork saved by an earlier version of the tool.
         source_path, settings = self.store.load(1, self.destination) # Opens the legacy sticker for normal metadata editing.
         self.assertEqual(settings.width, 0) # Leaves the border disabled on legacy content by default.
         replace_files(self.store.prepare(1, source_path, self.destination, settings, self.destination)) # Archives the legacy original while saving the edit.
-        self.assertEqual(self.destination.read_bytes(), self.source.read_bytes()) # Requires an unchanged exported image after metadata-only editing.
+        archived_source, _recipe = self.store.paths(1) # Resolves the new stable source record after the upgrade.
+        self.assertEqual(archived_source.read_bytes(), original) # Keeps the exact legacy input in the reversible source record.
+        with Image.open(self.destination) as output: # Reopens the newly written runtime representation.
+            self.assertTrue(all(value in {0, 255} for value in output.convert("RGBA").getchannel("A").getextrema())) # Requires binary alpha after the upgrade.
+
+    def test_old_authored_recipe_is_reprocessed_with_binary_alpha(self) -> None: # Ensures authored stickers from before the cleanup marker are upgraded on edit.
+        source_path, recipe_path = self.store.paths(1) # Resolves the stable authoring paths used by an older tool version.
+        source_path.parent.mkdir(parents=True) # Creates the preserved source directory for the simulated record.
+        image = Image.new("RGBA", (12, 12)) # Creates a compact source with one weak and one retained pixel.
+        image.putpixel((3, 3), (210, 40, 70, ALPHA_THRESHOLD - 1)) # Supplies the partial alpha that old output could retain.
+        image.putpixel((8, 8), (210, 40, 70, 255)) # Keeps one visible pixel so the sticker remains valid.
+        image.save(source_path) # Stores the original bytes exactly as an old authoring record would.
+        recipe_path.write_text(json.dumps({"version": 1, "border": {"width": 0, "smoothing": 5, "colour": "#abcdef"}}), encoding="utf-8") # Omits the new cleanup marker to represent old metadata.
+        self.destination.parent.mkdir(parents=True) # Creates the runtime directory for the simulated old export.
+        self.destination.write_bytes(source_path.read_bytes()) # Starts from an old runtime PNG that has not been normalized.
+        replace_files(self.store.prepare(1, source_path, self.destination, BorderSettings(0, 5, "#abcdef"), self.destination)) # Rebuilds the old record from its preserved source.
+        with Image.open(self.destination) as output: # Reads the edited runtime PNG after processing.
+            self.assertTrue(all(value in {0, 255} for value in output.convert("RGBA").getchannel("A").getextrema())) # Requires weak source alpha to be removed.
+        recipe = json.loads(recipe_path.read_text(encoding="utf-8")) # Reads the upgraded recipe marker.
+        self.assertEqual(recipe["alpha_threshold"], ALPHA_THRESHOLD) # Records that future metadata-only edits can safely reuse the output.
 
     def test_missing_original_and_empty_art_leave_existing_files_untouched(self) -> None: # Prevents destructive fallbacks when a new render cannot be built safely.
         self._save() # Creates a valid original, recipe, and runtime output.

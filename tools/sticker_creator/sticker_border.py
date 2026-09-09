@@ -9,6 +9,19 @@ from PIL import Image, ImageColor # Loads artwork and decodes the chosen backing
 from scipy import ndimage # Supplies compiled Euclidean distance and smoothing operations.
 
 
+ALPHA_THRESHOLD: int = 128 # Treats pixels at least half opaque as visible source artwork.
+
+
+def threshold_alpha(source: Image.Image) -> Image.Image: # Converts fuzzy source transparency into a clean binary sticker silhouette.
+    rgba: Image.Image = source.convert("RGBA") # Normalizes indexed, grayscale, and RGB inputs before inspecting alpha.
+    pixels: NDArray[np.uint8] = np.asarray(rgba).copy() # Copies the source so the user's original Image object is never modified.
+    alpha: NDArray[np.uint8] = pixels[:, :, 3] # Reads the source alpha channel as values from 0 through 255.
+    cleaned: NDArray[np.uint8] = np.where(alpha >= ALPHA_THRESHOLD, 255, 0).astype(np.uint8) # Keeps pixels at or above 50% opaque and removes the rest completely.
+    pixels[:, :, 3] = cleaned # Replaces every partial source alpha with one of the two physical sticker states.
+    pixels[cleaned == 0, :3] = 0 # Clears hidden RGB values so removed pixels are fully transparent in every channel.
+    return Image.fromarray(pixels, "RGBA") # Returns cleaned artwork while preserving its canvas and dimensions.
+
+
 @dataclass(frozen=True) # Makes a submitted border recipe safe to share with background work.
 class BorderSettings: # Describes the cut geometry independently of the source artwork.
     width: int = 12 # Controls the minimum outward growth in source-image pixels.
@@ -27,31 +40,32 @@ class BorderSettings: # Describes the cut geometry independently of the source a
 
 @dataclass(frozen=True) # Keeps the reusable cut mask separate from colour and palette conversion.
 class StickerShape: # Holds the original pixels aligned with their smoothed backing.
-    artwork: Image.Image # Retains the untouched artwork on its final expanded canvas.
+    artwork: Image.Image # Retains the cleaned source artwork on its final expanded canvas.
     backing: Image.Image # Stores the antialiased physical silhouette as an alpha mask.
     has_border: bool # Distinguishes disabled borders from a generated backing.
 
     def composite(self, colour: str) -> Image.Image: # Recolours the backing without repeating the expensive cut calculation.
-        if not self.has_border: # Preserves the original transparency when the border is disabled.
+        if not self.has_border: # Preserves the cleaned source transparency when the border is disabled.
             return self.artwork.copy() # Returns a caller-owned image suitable for palette conversion.
         background: Image.Image = Image.new("RGBA", self.artwork.size, ImageColor.getrgb(colour) + (0,)) # Creates a uniform backing in the requested colour.
         background.putalpha(self.backing) # Uses the smoothed cut edge as the physical sticker silhouette.
         return Image.alpha_composite(background, self.artwork) # Places the original artwork over its opaque backing without filtering the art.
 
 
-def build_sticker_shape(source: Image.Image, settings: BorderSettings) -> StickerShape: # Grows and smooths a cut outline while preserving every visible source pixel.
-    artwork: Image.Image = source.convert("RGBA") # Normalizes indexed and RGB PNG inputs without resizing their artwork.
-    if artwork.getchannel("A").getbbox() is None: # Detects empty artwork before invoking distance transforms.
+def build_sticker_shape(source: Image.Image, settings: BorderSettings) -> StickerShape: # Grows and smooths a cut outline while preserving every retained source pixel.
+    artwork: Image.Image = threshold_alpha(source) # Makes the source silhouette binary before border growth, smoothing, or export.
+    source_alpha: Image.Image = artwork.getchannel("A") # Reuses the cleaned alpha channel for validation and border-free output.
+    if source_alpha.getbbox() is None: # Detects empty artwork before invoking distance transforms.
         raise ValueError("the PNG is fully transparent; choose artwork with visible pixels") # Reports an unusable sticker image.
     if settings.width == 0: # Supports legacy stickers and deliberate border-free imports.
-        return StickerShape(artwork, artwork.getchannel("A"), False) # Keeps the original canvas and alpha intact.
+        return StickerShape(artwork, source_alpha, False) # Keeps the original canvas while enforcing the binary alpha contract.
     padding: int = settings.width + settings.smoothing * 4 + 4 # Leaves room for outward smoothing compensation and transparent edge pixels.
     canvas_size: tuple[int, int] = (artwork.width + padding * 2, artwork.height + padding * 2) # Expands both axes without stretching the source image.
     if canvas_size[0] * canvas_size[1] > 25_000_000: # Bounds peak memory used by native distance-transform buffers.
         raise ValueError("the bordered image is too large; reduce the artwork resolution or border settings") # Offers a practical correction before expensive allocation.
     padded_art: Image.Image = Image.new("RGBA", canvas_size) # Creates transparent space for the complete cut outline.
     padded_art.paste(artwork, (padding, padding)) # Copies pixels directly instead of applying alpha twice.
-    visible: NDArray[np.bool_] = np.asarray(padded_art.getchannel("A")) > 0 # Includes faint and isolated artwork pixels in the coverage guarantee.
+    visible: NDArray[np.bool_] = np.asarray(padded_art.getchannel("A")) > 0 # Includes every retained and isolated artwork pixel in the coverage guarantee.
     filled: NDArray[np.bool_] = ndimage.binary_fill_holes(visible) # Makes enclosed gaps solid backing while retaining exterior concavities.
     outside: NDArray[np.float32] = ndimage.distance_transform_edt(~filled).astype(np.float32) # Measures circular growth instead of square-kernel dilation.
     required: NDArray[np.bool_] = outside <= settings.width # Records the complete minimum-width backing that smoothing must enclose.

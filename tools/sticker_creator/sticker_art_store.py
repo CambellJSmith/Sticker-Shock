@@ -9,7 +9,7 @@ from tempfile import NamedTemporaryFile # Stages complete files beside their des
 
 from PIL import Image # Decodes source artwork without modifying its original file.
 
-from sticker_border import BorderSettings, StickerShape, build_sticker_shape # Shares border processing across every import and edit path.
+from sticker_border import ALPHA_THRESHOLD, BorderSettings, StickerShape, build_sticker_shape # Shares alpha cleanup and border processing across every import and edit path.
 from sticker_png import png_bytes, sticker_palette # Encodes the same palette output displayed in the preview.
 
 
@@ -76,6 +76,14 @@ class StickerArtStore: # Owns original artwork and border recipes independently 
         source_path, _settings = self.load(int(match.group(1)), selected) # Resolves saved originals and validates any existing recipe.
         return source_path # Routes every managed re-import through the original pixels.
 
+    @staticmethod
+    def _recipe_uses_current_alpha(recipe_path: Path) -> bool: # Detects authoring records whose runtime PNG already used binary alpha cleanup.
+        try: # Reads only the small recipe marker without opening the exported image.
+            record: object = json.loads(recipe_path.read_text(encoding="utf-8")) # Loads the persisted processing marker beside the border settings.
+        except (OSError, TypeError, ValueError): # Treats missing or malformed markers as old output that needs rebuilding.
+            return False # Forces a safe re-render instead of trusting potentially partial-alpha artwork.
+        return isinstance(record, dict) and record.get("alpha_threshold") == ALPHA_THRESHOLD # Keeps the lossless reuse path only for current exports.
+
     def prepare(self, sticker_id: int, selected: Path, destination: Path, settings: BorderSettings, existing_art: Path | None = None) -> dict[Path, bytes]: # Builds a complete authoring bundle without mutating any existing file.
         source_path: Path = self.resolve_source(selected) # Resolves managed exports back to their preserved original artwork.
         original_bytes: bytes = source_path.read_bytes() # Takes one stable source snapshot before image processing or renaming.
@@ -83,11 +91,11 @@ class StickerArtStore: # Owns original artwork and border recipes independently 
         output_bytes: bytes | None = None # Allows unchanged edits to reuse their exact existing exported PNG.
         if existing_art is not None and existing_art.exists() and recipe_destination.exists(): # Checks for an unchanged authored sticker before repeating quantization.
             old_source, old_settings = self.load(sticker_id, existing_art) # Loads the previous authoritative recipe.
-            if settings == old_settings and old_source.read_bytes() == original_bytes: # Compares source content and settings rather than just filenames.
+            if self._recipe_uses_current_alpha(recipe_destination) and settings == old_settings and old_source.read_bytes() == original_bytes: # Reuses only exports that already satisfy the binary-alpha contract.
                 output_bytes = existing_art.read_bytes() # Makes metadata-only edits and renames lossless for the exported image.
         if output_bytes is None: # Processes new imports, changed borders, and replacement artwork from their original pixels.
             with Image.open(BytesIO(original_bytes)) as source_image: # Decodes the stable original snapshot without touching the user's file.
                 shape: StickerShape = build_sticker_shape(source_image, settings) # Builds one covered and smoothed physical silhouette.
-                output_bytes = original_bytes if settings.width == 0 and existing_art == selected else png_bytes(sticker_palette(shape, settings.colour)) # Preserves unmodified legacy edits and otherwise exports the chosen border.
-        recipe: str = json.dumps({"version": 1, "border": asdict(settings)}, indent=2) + "\n" # Saves the exact cut recipe without adding Godot resource fields.
+                output_bytes = png_bytes(sticker_palette(shape, settings.colour)) # Exports the cleaned binary-alpha artwork with the chosen border and palette.
+        recipe: str = json.dumps({"version": 1, "alpha_threshold": ALPHA_THRESHOLD, "border": asdict(settings)}, indent=2) + "\n" # Records the cleanup rule so older authored exports are upgraded on their next edit.
         return {original_destination: original_bytes, recipe_destination: recipe.encode("utf-8"), destination: output_bytes} # Leaves publication to the caller's complete sticker transaction.
