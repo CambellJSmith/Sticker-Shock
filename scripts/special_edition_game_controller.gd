@@ -4,12 +4,12 @@ extends GameController
 const MARKET_WORLD_SCENE: PackedScene = preload("res://scenes/market_world.tscn") # Preloads the physically separate collector exchange as a persistent third gameplay world.
 const MARKET_WORLD_OFFSET: Vector3 = Vector3(2000.0, 0.0, 0.0) # Places the exchange far from book and pack-shop physics inside the shared World3D.
 
-var _market: StickerMarket = StickerMarket.new() # Owns persistent real-world sticker quotes, trend regimes, demand noise, and recent price history.
+var _market: StickerMarket = EditionStickerMarket.new() # Owns persistent real-world quotes while scaling rainbow, silver, and gold premiums by scarcity.
 var _market_world: MarketWorld # Stores the long-lived physical collector exchange scene for the complete application session.
 
 func _init() -> void: # Replaces only the economy and sticker silhouette solver with edition-aware implementations before normal game initialization begins.
-	_economy = GuaranteedSpecialStickerEconomy.new() # Preserves the existing economy interface while adding the one-time guaranteed special pull milestone and exact-copy market sales.
-	_auto_packer = SpecialEditionAutoPacker.new() # Preserves the complete existing controller flow while ensuring special copy keys never reach ResourceLoader during packing.
+	_economy = GuaranteedSpecialStickerEconomy.new() # Preserves the existing economy interface while adding three pull milestones and exact-copy market sales.
+	_auto_packer = SpecialEditionAutoPacker.new() # Preserves the complete existing controller flow while ensuring edition copy keys never reach ResourceLoader during packing.
 
 func _ready() -> void: # Composes the established game first, then adds persistent live market state and its physically separate exchange world.
 	super._ready() # Initializes catalogue, economy, book, pack shop, preferences, shared interface, and startup menu through the established coordinator.
@@ -46,7 +46,7 @@ func show_market() -> void: # Activates the physically separate collector exchan
 	_last_gameplay_destination = "market" # Records the exchange as the physical destination to resume after pause or complete overlays.
 	_game_ui.show_destination("market") # Presents the shared navigation/status shell above the active physical market world.
 
-func resume_last_gameplay_destination() -> void: # Restores the most recently used physical world including the new collector exchange.
+func resume_last_gameplay_destination() -> void: # Restores the most recently used physical world including the collector exchange.
 	if _last_gameplay_destination == "market": # Detects when pause or an overlay was opened from the exchange.
 		show_market() # Restores the collector exchange through its normal authoritative activation path.
 		return # Avoids falling through to the base book/shop destination resolver.
@@ -72,7 +72,7 @@ func sell_market_sticker(sticker_key: String) -> int: # Sells one loose exact-ed
 	if sticker_key.is_empty() or get_available_collection_count(sticker_key) <= 0: # Rejects unknown editions and copies already attached to the book or reserved for placement.
 		return 0 # Leaves inventory and currency unchanged when no loose physical copy is available to sell.
 	_market.advance_to_now(_catalog) # Publishes any overdue real-world market tick before locking the sale price.
-	var sale_price: int = _market.get_price(sticker_key, _catalog) # Reads the exact current normal-or-gold bid after the latest market advancement.
+	var sale_price: int = _market.get_price(sticker_key, _catalog) # Reads the exact current edition-aware bid after the latest market advancement.
 	var special_economy: GuaranteedSpecialStickerEconomy = _economy as GuaranteedSpecialStickerEconomy # Narrows the configured edition-aware economy for its atomic sale transaction.
 	if special_economy == null or not special_economy.sell_owned_copy(sticker_key, sale_price): # Atomically validates ownership, removes one exact edition, credits coins, and saves progression.
 		return 0 # Reports no sale if persistent inventory changed before the transaction could commit.
@@ -82,17 +82,18 @@ func sell_market_sticker(sticker_key: String) -> int: # Sells one loose exact-ed
 	_game_ui.show_toast("sold %s for %d coins" % [_catalog.get_display_name(sticker_key), sale_price]) # Gives concise transaction feedback without interrupting the market world.
 	return sale_price # Returns the committed proceeds for callers that need explicit transaction confirmation.
 
-func show_sticker_inspection(sticker_key: String) -> bool: # Opens a normal or special book sticker while preserving its per-copy edition material in the isolated inspector.
+func show_sticker_inspection(sticker_key: String) -> bool: # Opens a normal, rainbow, silver, or gold book sticker while preserving its exact material in the isolated inspector.
 	if _game_ui == null or sticker_key.is_empty(): # Rejects inspection before the persistent interface exists or when no sticker identity was resolved.
 		return false # Leaves the physical book unchanged when no modal can be constructed.
-	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Resolves the real PNG shared by normal and special editions.
+	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Resolves the real PNG shared by every edition.
 	if not _game_ui.show_sticker_inspection(artwork_path): # Uses the established modal setup and texture-loading path first.
 		return false # Leaves the current destination unchanged when the artwork cannot be inspected.
-	if StickerVariant.is_special(sticker_key): # Rebuilds only special copies with the edition-aware material after the common inspector has initialized its state.
+	if StickerVariant.is_special(sticker_key): # Rebuilds only premium copies after the common inspector initializes its state.
 		var texture: Texture2D = load(artwork_path) as Texture2D # Reuses Godot's imported texture cache for the already validated artwork.
 		if texture != null: # Protects against the resource disappearing between modal setup and the edition-specific rebuild.
 			var inspection_mesh: StickerMesh = _game_ui._inspection._sticker_mesh # Retrieves the inspector-owned temporary mesh without touching the persistent book copy.
-			inspection_mesh.configure(_catalog.get_default_size(artwork_path), texture, true) # Applies the same special-edition shader path used by shop reveals and placement previews.
+			inspection_mesh.configure(_catalog.get_default_size(artwork_path), texture, false) # Rebuilds the shared physical sheet without the legacy boolean gold shortcut.
+			StickerVariant.apply_material(inspection_mesh, sticker_key) # Applies the exact rainbow, silver, or gold finish represented by the clicked copy.
 			inspection_mesh.clear_peel() # Keeps the isolated inspection copy flat at startup.
 			inspection_mesh.clear_turnover() # Keeps the isolated inspection copy front-facing until the player rotates it.
 	return true # Confirms that the requested edition is now visible in the inspection modal.
