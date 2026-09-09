@@ -8,8 +8,8 @@ const THROW_STAGGER: float = 0.11 # Delays adjacent pack slots so the five won s
 const IDLE_ROTATION_SPEED: float = 0.24 # Defines the slow in-plane rotation used after the throw settles.
 const IDLE_FLOAT_HEIGHT: float = 0.08 # Adds a tiny depth bob that changes the shadow without changing apparent sticker size under orthographic projection.
 
-var _pending_index: int = -1 # Stores the current pending-pack index represented by this clickable reveal sticker.
-var _sticker_path: String = "" # Stores the artwork resource path represented by this physical reveal copy.
+var _pending_index: int = -1 # Stores the reveal-order index represented by this shop sticker.
+var _sticker_path: String = "" # Stores the base artwork resource path represented by this physical reveal copy.
 var _visual: StickerMesh # Stores the realistic artwork-defined sticker mesh shared with the book simulation.
 var _collision_shape: CollisionShape3D # Stores the lightweight picking volume that follows the flat sticker presentation.
 var _target_position: Vector3 = Vector3.ZERO # Stores the final floating local-space position for this reveal slot.
@@ -18,9 +18,9 @@ var _elapsed: float = 0.0 # Stores reveal-animation time including the per-slot 
 var _base_yaw: float = 0.0 # Stores the settled in-plane orientation used as the idle rotation origin.
 var _phase: float = 0.0 # Stores a deterministic per-slot phase offset for independent shadow-height motion.
 
-func configure(pending_index: int, sticker_path: String, sticker_size: Vector2, sticker_texture: Texture2D, target_position: Vector3) -> void: # Builds one clickable pack result and prepares its flat-view throw animation.
-	_pending_index = pending_index # Associates this reveal object with the exact mutable pending-pack index used by manual placement.
-	_sticker_path = sticker_path # Stores the artwork path for controller validation when the player clicks the floating sticker.
+func configure(pending_index: int, sticker_path: String, sticker_size: Vector2, sticker_texture: Texture2D, target_position: Vector3, special_edition: bool = false) -> void: # Builds one reveal result and applies this exact copy's normal-or-special material treatment.
+	_pending_index = pending_index # Associates this reveal object with its deterministic result-order index.
+	_sticker_path = sticker_path # Stores the base artwork path for debugging and inspection.
 	_target_position = target_position # Stores the intended final display position in the shop presentation plane.
 	_start_position = Vector3(target_position.x * 0.18, 0.18, target_position.z + 1.65) # Starts all five stickers near the pack and lower on screen before they fan upward into view.
 	position = _start_position # Places the sticker at its launch point before the first animation frame.
@@ -29,8 +29,8 @@ func configure(pending_index: int, sticker_path: String, sticker_size: Vector2, 
 	_elapsed = -float(pending_index) * THROW_STAGGER # Applies the reveal-order delay directly to animation time without timers or signals.
 	_visual = StickerMesh.new() # Creates the same physical sticker surface used by attached book stickers.
 	_visual.name = "visual" # Gives the runtime component a readable tree name.
-	add_child(_visual) # Parents the visual under the clickable reveal root so translation and in-plane rotation affect rendering and picking together.
-	_visual.configure(sticker_size, sticker_texture) # Builds the realistic front, reverse, source-alpha silhouette, and shadow-capable sheet.
+	add_child(_visual) # Parents the visual under the reveal root so translation and in-plane rotation affect rendering together.
+	_visual.configure(sticker_size, sticker_texture, special_edition) # Builds the realistic sheet and gives rare special copies the shiny gold-metal front shader.
 	_collision_shape = CollisionShape3D.new() # Creates a simple physical picking volume for shop ray queries.
 	_collision_shape.name = "pick_shape" # Gives the interaction component a readable runtime name.
 	var box_shape: BoxShape3D = BoxShape3D.new() # Creates a thin box matching the complete artwork bounds.
@@ -45,17 +45,17 @@ func configure(pending_index: int, sticker_path: String, sticker_size: Vector2, 
 	monitorable = true # Keeps the area available to direct physics-space ray intersection.
 	input_ray_pickable = true # Keeps the reveal object eligible for pointer selection.
 
-func settle_immediately() -> void: # Places a previously opened pending sticker directly into its flat inspection state without replaying the throw after returning from the book.
+func settle_immediately() -> void: # Places a revealed sticker directly into its flat inspection state without replaying the throw.
 	_elapsed = THROW_DURATION # Advances the one-time reveal clock to the first settled idle frame.
-	visible = true # Ensures the still-pending sticker is immediately visible when the shop becomes active again.
+	visible = true # Ensures the sticker is immediately visible.
 	position = _target_position # Restores the exact floating reveal-slot position without another launch arc.
 	rotation = Vector3(0.0, _base_yaw, 0.0) # Keeps the printed face perfectly parallel to the screen while preserving its in-plane orientation.
 
-func get_pending_index() -> int: # Returns the current pending-pack index represented by this reveal object.
-	return _pending_index # Exposes the stable reveal-order index without allowing external mutation.
+func get_pending_index() -> int: # Returns the reveal-order index represented by this object.
+	return _pending_index # Exposes the stable result-order index without allowing external mutation.
 
-func get_sticker_path() -> String: # Returns the artwork path represented by this reveal object.
-	return _sticker_path # Exposes the design identifier for validation and debugging.
+func get_sticker_path() -> String: # Returns the base artwork path represented by this reveal object.
+	return _sticker_path # Exposes the design identifier for debugging.
 
 func _process(delta: float) -> void: # Advances the initial flat-view throw and continuous in-plane rotation without perspective tilting.
 	_elapsed += delta # Advances animation time regardless of whether the current slot is still waiting for its stagger delay.

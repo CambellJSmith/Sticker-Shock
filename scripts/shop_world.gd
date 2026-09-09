@@ -12,7 +12,7 @@ var _economy: StickerEconomy # Owns purchases, free-pack claims, and persistent 
 var _catalog: StickerCatalog # Supplies original artwork, authored metadata, and physical dimensions.
 var _active: bool = false # Guards hidden-world processing.
 var _reveal_nodes: Array[PackRevealSticker] = [] # Tracks the current physical result sheets.
-var _revealed_paths: PackedStringArray = PackedStringArray() # Stores only the current transient shop reveal; ownership already lives in the collection.
+var _revealed_paths: PackedStringArray = PackedStringArray() # Stores transient normal-or-special copy identities; ownership already lives in the collection.
 
 func configure(controller: GameController, economy: StickerEconomy, catalog: StickerCatalog, _book_state: StickerBookState) -> void: # Binds authoritative models and the independent HUD.
 	_controller = controller # Retains transaction and navigation ownership.
@@ -38,16 +38,17 @@ func redeem_unique_code(code: String) -> String: # Redeems one exact case-sensit
 	var sticker_path: String = _economy.redeem_unique_code(_catalog, code) # Performs the one-time persistent code validation and ownership grant.
 	if sticker_path.is_empty(): # Rejects invalid, wrong-case, non-Unique, or previously redeemed codes.
 		return "" # Leaves the shop presentation unchanged.
-	show_reward(PackedStringArray([sticker_path]), true) # Shows the collected Unique without creating any physical-book pending state.
+	show_reward(PackedStringArray([sticker_path]), true) # Shows the collected normal-edition Unique without creating any physical-book pending state.
 	return sticker_path # Reports the rewarded identity so the HUD can show successful redemption feedback.
 
-func show_reward(paths: PackedStringArray, animate_throw: bool) -> void: # Rebuilds a transient collection reward reveal without creating book-placement work.
+func show_reward(paths: PackedStringArray, animate_throw: bool) -> void: # Rebuilds a transient collection reward reveal while preserving each exact normal-or-special edition.
 	_clear_reveal() # Retires physical sheets belonging to the previous reveal.
-	_revealed_paths = paths.duplicate() # Keeps an independent transient copy of the collected reward identities.
+	_revealed_paths = paths.duplicate() # Keeps an independent transient copy of the collected edition identities.
 	var global_targets: Array[Vector3] = [] # Aligns native result labels with the physical reveal anchors.
 	for index: int in range(_revealed_paths.size()): # Creates a separate sheet for each collected copy.
-		var path: String = _revealed_paths[index] # Reads this copy's stable artwork identity.
-		var texture: Texture2D = load(path) as Texture2D # Reuses the imported artwork texture.
+		var sticker_key: String = _revealed_paths[index] # Reads this copy's exact normal-or-special inventory identity.
+		var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Resolves the authored texture shared by both editions.
+		var texture: Texture2D = load(artwork_path) as Texture2D # Reuses the imported artwork texture.
 		if texture == null: # Handles missing imported artwork without a broken mesh.
 			global_targets.append(global_position + Vector3(float(index - 2) * 2.15, 0.6, 0.0)) # Keeps HUD result-index mapping intact.
 			continue # Leaves unavailable artwork represented by its text label.
@@ -55,12 +56,12 @@ func show_reward(paths: PackedStringArray, animate_throw: bool) -> void: # Rebui
 		var reveal: PackRevealSticker = PackRevealSticker.new() # Creates the existing shader-based physical sheet.
 		reveal.name = "reveal_%d" % index # Gives each copy a stable local debug identity.
 		_reveal_root.add_child(reveal) # Attaches the sheet before its material setup.
-		reveal.configure(index, path, _catalog.get_default_size(path), texture, target) # Preserves the original physical dimensions and reveal animation.
+		reveal.configure(index, artwork_path, _catalog.get_default_size(artwork_path), texture, target, StickerVariant.is_special(sticker_key)) # Applies original dimensions plus the special gold-metal shader only to special copies.
 		if not animate_throw: # Avoids replaying the reward throw when restoring an existing reveal.
 			reveal.settle_immediately() # Displays the reveal in its settled presentation.
 		_reveal_nodes.append(reveal) # Retains the sheet for cleanup when the reveal ends.
 		global_targets.append(_reveal_root.to_global(target)) # Supplies the matching absolute anchor to the HUD.
-	_hud.show_choices(_revealed_paths, global_targets, _camera) # Presents collected-result labels and a single continue action.
+	_hud.show_choices(_revealed_paths, global_targets, _camera) # Presents edition-aware result labels and a single continue action.
 
 func dismiss_reward() -> void: # Finishes viewing the current reward while leaving every collected copy in inventory.
 	_revealed_paths.clear() # Removes only transient reveal state; economy ownership remains unchanged.
