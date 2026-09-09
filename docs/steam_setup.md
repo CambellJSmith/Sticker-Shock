@@ -94,11 +94,19 @@ Sticker-Shock already uses Godot's normal controller input actions (`Button_A`, 
 
 Steam's normal controller remapping can remain enabled at the client level. Add a Steam Input action manifest only if Sticker-Shock later moves deliberately from Godot input actions to the Steam Input API.
 
-## 8. Steam Deck
+## 8. Steam hardware and Proton
 
-`SteamManager.is_running_on_deck()` exposes GodotSteam's Steam Deck runtime detection after successful initialization. No Deck-specific gameplay branch is currently required because Sticker-Shock already has controller navigation and a scalable desktop UI.
+Steamworks SDK 1.65 removed the old dedicated `IsRunningOnSteamDeck()` query. GodotSteam 4.22.1 exposes the replacement hardware APIs used by `SteamManager`:
 
-Validate the exported Linux/Proton build through Steam, including controller-only navigation, text-entry behavior, pause/back actions, the overlay, and cloud-save restoration.
+```gdscript
+SteamManager.get_steam_hardware_type()
+SteamManager.get_steam_hardware_default_config()
+SteamManager.is_running_under_proton()
+```
+
+`get_steam_hardware_type()` is useful for diagnostics and analytics. Functional quality/performance defaults should prefer `get_steam_hardware_default_config()` rather than hard-coding behavior around one named device. `is_running_under_proton()` is available when a compatibility-specific workaround is genuinely needed.
+
+No Steam-hardware-specific gameplay branch is currently required because Sticker-Shock already has controller navigation and a scalable desktop UI. Validate the exported Linux/Proton build through Steam, including controller-only navigation, text-entry behavior, pause/back actions, overlay behavior, and cloud-save restoration.
 
 ## 9. Build validation checklist
 
@@ -112,7 +120,7 @@ Before promoting a Steam build:
 6. Verify the account reports ownership before enabling `integration/require_steam=true`.
 7. Test any published achievement/stat API names with `SteamProgress`.
 8. Test Auto-Cloud across two machines or two clean user profiles.
-9. Test controller-only navigation and Steam Deck/Proton if those platforms are being supported.
+9. Test controller-only navigation and Linux/Proton or Steam hardware configurations that are being supported.
 10. Quit through both the menu and the window close button and confirm Steam no longer reports the game as running after the process exits.
 
 ## Runtime ownership
