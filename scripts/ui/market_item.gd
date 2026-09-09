@@ -2,16 +2,16 @@ class_name MarketItem
 extends PanelContainer
 
 @onready var _art: TextureRect = %art as TextureRect # Shows the authored sticker artwork for the quoted edition row.
-@onready var _name_label: Label = %name as Label # Shows the authored sticker name plus special-edition identity when applicable.
+@onready var _name_label: Label = %name as Label # Shows the authored sticker name plus exact premium edition identity when applicable.
 @onready var _rarity_label: Label = %rarity as Label # Shows the authored rarity used by the base-value model.
 @onready var _owned_label: Label = %owned as Label # Shows how many unstuck copies can currently be sold.
 @onready var _trend_label: Label = %trend as Label # Shows the persistent bullish, bearish, or sideways market regime and recent move.
 @onready var _price_label: Label = %price as Label # Shows the current whole-coin collector bid for one copy.
 @onready var _sell_button: GameButton = %sell_button as GameButton # Sells exactly one available copy through the authoritative controller.
 
-var _sticker_key: String = "" # Stores the exact normal-or-special edition identity represented by this row.
+var _sticker_key: String = "" # Stores the exact normal, rainbow, silver, or gold edition identity represented by this row.
 var _market: StickerMarket # Reads current live quotes and trend presentation.
-var _catalog: StickerCatalog # Reads authored metadata shared by both editions.
+var _catalog: StickerCatalog # Reads authored metadata shared by every edition.
 var _available_count: Callable = Callable() # Reads copies not already attached to the book or reserved for placement.
 var _sell: Callable = Callable() # Delegates the actual inventory mutation and currency credit to the controller.
 
@@ -22,8 +22,9 @@ func configure(sticker_key: String, texture: Texture2D, market: StickerMarket, c
 	_available_count = available_count # Retains the controller-owned physical availability calculation.
 	_sell = sell # Retains the controller-owned transaction entry point.
 	_art.texture = texture # Reuses Godot's imported texture cache for the authored artwork preview.
-	_name_label.text = "%s · gold special" % _catalog.get_display_name(sticker_key) if StickerVariant.is_special(sticker_key) else _catalog.get_display_name(sticker_key) # Makes gold editions unmistakably separate without changing the authored name.
-	_rarity_label.text = _catalog.get_rarity_name(sticker_key) # Shows rarity independently from the special-edition overlay.
+	var base_name: String = _catalog.get_display_name(sticker_key) # Reads the authored name independently from per-copy finish.
+	_name_label.text = "%s · %s edition" % [base_name, StickerVariant.get_edition_name(sticker_key)] if StickerVariant.is_special(sticker_key) else base_name # Makes rainbow, silver, and gold rows unmistakably separate without changing authored metadata.
+	_rarity_label.text = _catalog.get_rarity_name(sticker_key) # Shows rarity independently from the edition overlay.
 	_sell_button.bind_action(_sell_one) # Routes native button activation directly without signals.
 	refresh() # Initializes counts, quote, and trend state immediately after binding.
 
@@ -46,7 +47,7 @@ func refresh() -> void: # Updates only lightweight market and ownership fields f
 	_sell_button.disabled = available <= 0 # Prevents UI activation when every owned copy is already in the book or otherwise unavailable.
 
 func get_sticker_key() -> String: # Exposes the immutable row identity to the market HUD cache.
-	return _sticker_key # Returns the exact normal-or-special edition key represented by this row.
+	return _sticker_key # Returns the exact edition key represented by this row.
 
 func focus_sell() -> void: # Gives native focus to this row's sell action without exposing its editor-authored child path to parent components.
 	_sell_button.grab_focus() # Selects the row's one actionable transaction control for keyboard and controller navigation.
