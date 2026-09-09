@@ -11,6 +11,7 @@ const SILVER_SUFFIX: String = "|silver" # Stores the silver edition independentl
 const RAINBOW_PULL_CHANCE: float = 0.01 # Gives an ordinary pack pull a one-percent chance to become rainbow when no milestone guarantee applies.
 const SILVER_PULL_CHANCE: float = 0.005 # Gives an ordinary pack pull a half-percent chance to become silver when no milestone guarantee applies.
 const GOLD_PULL_CHANCE: float = 0.001 # Gives an ordinary pack pull a tenth-percent chance to become gold when no milestone guarantee applies.
+const SPECIAL_PULL_CHANCE: float = GOLD_PULL_CHANCE # Preserves the legacy single-special API as the gold chance so older base-class code still parses safely.
 
 static func make_key(sticker_path: String, special: bool = false) -> String: # Preserves the previous API for old callers while mapping legacy special=true explicitly to gold.
 	return make_edition_key(sticker_path, EDITION_GOLD if special else EDITION_NORMAL) # Keeps old authored and saved semantics stable during the multi-edition transition.
