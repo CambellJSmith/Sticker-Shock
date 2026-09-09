@@ -19,4 +19,4 @@ if errorlevel 1 (
     if errorlevel 1 exit /b 1
 )
 
-"%PYTHON_BIN%" "%SCRIPT_DIR%sticker_creator.py"
+"%PYTHON_BIN%" "%SCRIPT_DIR%sticker_creator_entry.py"
