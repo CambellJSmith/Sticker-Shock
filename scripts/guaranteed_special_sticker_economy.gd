@@ -11,6 +11,20 @@ func initialize() -> void: # Initializes the normal economy first and then resto
 	super.initialize() # Restores the existing currency, collection, cooldown, and redemption state through the established economy path.
 	_load_or_create_guarantee_state() # Restores guarantee progress or reconstructs it from existing collection history when first introduced.
 
+func sell_owned_copy(sticker_key: String, sale_price: int) -> bool: # Removes exactly one owned edition copy and credits its accepted market value in one persisted progression transaction.
+	if sticker_key.is_empty() or sale_price <= 0: # Rejects invalid identities and nonpositive quotes before touching player progression.
+		return false # Leaves inventory and currency unchanged for malformed sale requests.
+	var current_count: int = get_owned_count(sticker_key) # Reads the exact normal-or-special edition count currently owned.
+	if current_count <= 0: # Rejects stale sale requests after the final copy has already been sold.
+		return false # Prevents inventory from becoming negative or currency from being duplicated.
+	if current_count == 1: # Removes the edition key completely when this transaction sells its final owned copy.
+		_owned_sticker_counts.erase(sticker_key) # Keeps the compact persistent inventory free from zero-count entries.
+	else: # Handles editions where multiple copies remain after this sale.
+		_owned_sticker_counts[sticker_key] = current_count - 1 # Removes exactly one copy while preserving every other owned duplicate.
+	_currency += sale_price # Credits the accepted market quote to the same spendable coin balance used for pack purchases.
+	_save() # Persists inventory removal and currency credit together so quitting cannot split the transaction.
+	return true # Confirms that one exact edition copy was sold and paid successfully.
+
 func _apply_special_rolls(base_pack: PackedStringArray) -> PackedStringArray: # Converts authored pulls into edition-aware identities while enforcing the one-time 25th-pull guarantee.
 	var result: PackedStringArray = PackedStringArray() # Stores the exact normal-or-special identity for each pull in original order.
 	for sticker_path: String in base_pack: # Processes every paid or free pack pull independently in its real draw order.
