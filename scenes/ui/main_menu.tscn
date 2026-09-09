@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/arrow.svg" id="2"]
@@ -6,12 +6,8 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/shop.svg" id="4"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/collection.svg" id="5"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="6"]
-[ext_resource type="Texture2D" path="res://assets/stickers/rocket.svg" id="7"]
-[ext_resource type="Texture2D" path="res://assets/stickers/animals/frog_face.svg" id="8"]
-[ext_resource type="Texture2D" path="res://assets/stickers/ghost.svg" id="9"]
-[ext_resource type="Texture2D" path="res://assets/stickers/planet.svg" id="10"]
-[ext_resource type="Texture2D" path="res://assets/stickers/fantasy/potion.svg" id="11"]
-
+[ext_resource type="Texture2D" path="res://assets/ui/pack.svg" id="7"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift.svg" id="8"]
 
 [node name="main_menu" type="Control"]
 layout_mode = 1
@@ -159,63 +155,29 @@ text = "the things you love, all in one place."
 mouse_filter = 2
 theme_type_variation = "AccentLabel"
 
-[node name="rocket" type="TextureRect" parent="margin/layout/right/hero"]
-anchor_left = 0.17
-anchor_top = 0.11
-offset_right = 150
-offset_bottom = 160
+[node name="standard_pack" type="TextureRect" parent="margin/layout/right/hero"]
+anchor_left = 0.18
+anchor_top = 0.08
+anchor_right = 0.61
+anchor_bottom = 0.86
 texture = ExtResource("7")
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
-rotation = -0.24
+rotation = -0.10
 
-[node name="frog" type="TextureRect" parent="margin/layout/right/hero"]
-anchor_left = 0.57
-anchor_top = 0.03
-offset_right = 145
-offset_bottom = 145
+[node name="free_pack" type="TextureRect" parent="margin/layout/right/hero"]
+anchor_left = 0.50
+anchor_top = 0.16
+anchor_right = 0.86
+anchor_bottom = 0.84
 texture = ExtResource("8")
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
-rotation = 0.16
-
-[node name="ghost" type="TextureRect" parent="margin/layout/right/hero"]
-anchor_left = 0.59
-anchor_top = 0.43
-offset_right = 160
-offset_bottom = 160
-texture = ExtResource("9")
-expand_mode = 1
-stretch_mode = 5
-mouse_filter = 2
-rotation = 0.15
-
-[node name="planet" type="TextureRect" parent="margin/layout/right/hero"]
-anchor_left = 0.18
-anchor_top = 0.51
-offset_right = 148
-offset_bottom = 148
-texture = ExtResource("10")
-expand_mode = 1
-stretch_mode = 5
-mouse_filter = 2
-rotation = -0.18
-
-[node name="potion" type="TextureRect" parent="margin/layout/right/hero"]
-anchor_left = 0.38
-anchor_top = 0.3
-offset_right = 133
-offset_bottom = 150
-texture = ExtResource("11")
-expand_mode = 1
-stretch_mode = 5
-mouse_filter = 2
-rotation = 0.18
+rotation = 0.11
 
 [node name="progress_panel" type="PanelContainer" parent="margin/layout/right"]
-
 
 [node name="content" type="VBoxContainer" parent="margin/layout/right/progress_panel"]
 theme_override_constants/separation = 9
