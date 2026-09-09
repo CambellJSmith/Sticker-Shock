@@ -3,7 +3,7 @@ extends RefCounted
 
 const GAMEPAD_INDEX_COUNT: int = 4 # Covers Steam Input's gamepad-emulation slots before falling back to every connected controller handle.
 const STEAM_INPUT_TYPE_STEAM_CONTROLLER: int = 1 # Identifies the original Valve Steam Controller in the Steamworks ESteamInputType enum.
-const STEAM_INPUT_TYPE_STEAM_DECK_CONTROLLER: int = 14 # Identifies Steam Deck-class hardware; current Steam Input also reports newer Valve controller hardware through this value.
+const STEAM_INPUT_TYPE_STEAM_DECK_CONTROLLER: int = 14 # Identifies Steam Deck-class hardware in the Steamworks ESteamInputType enum.
 const MIN_VALID_QUATERNION_LENGTH_SQUARED: float = 0.50 # Rejects zero-filled motion structs returned by controllers without usable motion sensors.
 const MAX_VALID_QUATERNION_LENGTH_SQUARED: float = 1.50 # Rejects malformed motion data before normalization can amplify invalid samples.
 const MIN_MOTION_RADIANS: float = 0.0007 # Filters tiny sensor jitter below roughly four hundredths of a degree per sample.
@@ -12,7 +12,7 @@ const MAX_SAMPLE_DELTA_RADIANS: float = PI / 3.0 # Treats implausible single-fra
 var _input_initialized: bool = false # Keeps Steam Input initialization idempotent across repeated inspection sessions.
 var _session_active: bool = false # Restricts motion polling to an open sticker inspection.
 var _controller_handle: int = 0 # Stores the Steam Input handle selected for the current inspection session.
-var _controller_type: int = 0 # Stores the Steam Input hardware classification for diagnostics and prioritization.
+var _controller_type: int = 0 # Stores the Steam Input hardware classification for diagnostics and player-facing hints.
 var _has_reference_orientation: bool = false # Tracks whether one valid motion sample has established the neutral incremental reference.
 var _previous_orientation: Quaternion = Quaternion.IDENTITY # Stores the previous raw Steam sensor-fused orientation for frame-to-frame delta calculation.
 var _motion_active: bool = false # Reports whether the most recent valid sample contained deliberate gyro movement above the jitter threshold.
@@ -49,13 +49,13 @@ func is_motion_active() -> bool: # Reports whether the most recent sampled quate
 	return is_available() and _motion_active # Suppresses stale movement state when the session or device is unavailable.
 
 func get_device_label() -> String: # Returns a concise player-facing identity for the currently selected Steam motion device.
-	match _controller_type: # Keeps labels intentionally broad because current Steam Input can classify multiple Valve devices under the same type.
+	match _controller_type: # Gives known Valve hardware a precise label while remaining future-compatible with new Steam Input controller types.
 		STEAM_INPUT_TYPE_STEAM_CONTROLLER:
 			return "Steam Controller gyro" # Identifies the original Steam Controller hardware family.
 		STEAM_INPUT_TYPE_STEAM_DECK_CONTROLLER:
-			return "Steam Deck / Valve controller gyro" # Covers the Deck and newer Valve controller hardware currently surfaced through this Steam Input type.
+			return "Steam Deck / Valve gyro" # Identifies Steam Deck-class motion hardware without making this enum a requirement for support.
 		_:
-			return "Steam Input gyro" # Supports any additional Steam Input motion-capable controller without hard-coding future enum values.
+			return "Steam Input gyro" # Allows Steam Controller successors and any other motion-capable Steam Input device to work even under a new enum value.
 
 func sample_rotation_delta() -> Quaternion: # Returns one incremental controller-motion quaternion converted into Godot's inspection coordinate basis.
 	_motion_active = false # Requires this sample to prove deliberate movement before reporting active gyro input.
@@ -78,7 +78,7 @@ func sample_rotation_delta() -> Quaternion: # Returns one incremental controller
 	if _previous_orientation.dot(current_orientation) < 0.0: # Handles mathematically equivalent q versus -q representations without creating a false 360-degree jump.
 		current_orientation = Quaternion(-current_orientation.x, -current_orientation.y, -current_orientation.z, -current_orientation.w) # Moves the sample onto the same quaternion hemisphere as the previous frame.
 	var steam_delta: Quaternion = (current_orientation * _previous_orientation.inverse()).normalized() # Calculates only the physical rotation that occurred since the previous Steam Input sample.
-	_previous_orientation = current_orientation # Advances the reference immediately so every frame remains incremental and drift cannot snap absolute sticker orientation.
+	_previous_orientation = current_orientation # Advances the reference immediately so every frame remains incremental instead of following absolute controller orientation.
 	var delta_angle: float = steam_delta.get_angle() # Measures physical movement magnitude before coordinate conversion or application.
 	if delta_angle < MIN_MOTION_RADIANS: # Filters stationary-controller sensor noise from the visible sticker transform.
 		return Quaternion.IDENTITY # Keeps the inspected sticker visually stable while the controller rests.
@@ -86,7 +86,7 @@ func sample_rotation_delta() -> Quaternion: # Returns one incremental controller
 		_has_reference_orientation = false # Re-establishes neutral orientation on the following valid sample instead of applying the implausible jump.
 		return Quaternion.IDENTITY # Protects inspection from sudden large rotations outside deliberate physical motion.
 	_motion_active = true # Marks this sample as genuine gyro motion for input-mode presentation and diagnostics.
-	return _steam_delta_to_godot(steam_delta) # Converts Steam's controller coordinate basis into the Godot inspection world's right/up/back basis.
+	return _steam_delta_to_godot(steam_delta) # Converts Steam's controller orientation basis into the Godot inspection world's basis.
 
 func _ensure_input_initialized() -> bool: # Lazily initializes Steam Input only when sticker inspection actually needs motion sensors.
 	if _input_initialized: # Reuses the already initialized Steam Input interface across every later inspection.
@@ -103,43 +103,33 @@ func _run_input_frame() -> void: # Synchronizes Steam Input state immediately be
 	if _input_initialized and Steam.has_method(&"runFrame"): # Keeps compatibility with addon builds that rely only on SteamAPI callback pumping.
 		Steam.call(&"runFrame") # Requests the latest physical controller state; Valve documents this as the lowest-latency path before reads.
 
-func _discover_motion_controller() -> bool: # Chooses a usable gyro device, preferring Valve hardware while supporting hot-plugged Steam Input motion controllers.
+func _discover_motion_controller() -> bool: # Chooses the first usable motion device in active gamepad-slot order, then falls back to remaining Steam Input controllers.
 	if not _input_initialized: # Rejects discovery before Steam Input has a live interface.
 		return false # Leaves the session waiting for initialization.
-	var candidates: Array[int] = [] # Stores unique controller handles in preferred gamepad-slot order followed by remaining Steam Input devices.
-	if Steam.has_method(&"getControllerForGamepadIndex"): # Uses Steam's gamepad-emulation mapping first so the primary actively used controller wins when possible.
+	var candidates: Array[int] = [] # Stores unique controller handles with primary gamepad-emulation slots first so the controller actually driving the game wins.
+	if Steam.has_method(&"getControllerForGamepadIndex"): # Uses Steam's gamepad-emulation mapping first so an external Steam Controller can correctly outrank a dormant built-in Deck controller.
 		for gamepad_index: int in range(GAMEPAD_INDEX_COUNT): # Checks the standard four emulated gamepad slots in player order.
 			_add_candidate(candidates, int(Steam.call(&"getControllerForGamepadIndex", gamepad_index))) # Adds each valid nonzero mapped handle exactly once.
-	var connected_value: Variant = Steam.call(&"getConnectedControllers") # Enumerates every remaining Steam Input controller so Deck/native Steam Controller handles are never missed.
+	var connected_value: Variant = Steam.call(&"getConnectedControllers") # Enumerates every remaining Steam Input controller so native Deck and hot-plugged motion devices are never missed.
 	if connected_value is Array: # Handles GodotSteam's ordinary controller-handle array representation.
-		for handle_value: Variant in connected_value as Array: # Visits each returned Steam Input handle once.
+		var connected_array: Array = connected_value # Narrows the returned Variant once before iterating its controller handles.
+		for handle_value: Variant in connected_array: # Visits each returned Steam Input handle once.
 			_add_candidate(candidates, int(handle_value)) # Normalizes integer Variants and suppresses duplicates from gamepad-slot discovery.
 	elif connected_value is PackedInt64Array: # Supports packed-handle return shapes without binding this helper to one GodotSteam implementation detail.
-		for packed_handle: int in connected_value as PackedInt64Array: # Visits every packed 64-bit input handle.
+		var connected_packed: PackedInt64Array = connected_value # Narrows the returned Variant once before iterating packed 64-bit handles.
+		for packed_handle: int in connected_packed: # Visits every packed Steam Input handle.
 			_add_candidate(candidates, packed_handle) # Adds the handle through the same validity and duplicate guard.
-	if candidates.is_empty(): # Handles no connected Steam Input devices without generating warnings every frame.
-		return false # Leaves hot-plug discovery active for later samples in the same inspection.
-	var best_handle: int = 0 # Stores the strongest usable candidate after validating actual motion data.
-	var best_type: int = 0 # Stores the corresponding Steam Input hardware classification for labels and preference ranking.
-	var best_priority: int = 999 # Starts above every supported candidate priority so the first valid motion device can win.
-	for candidate: int in candidates: # Validates real motion capability instead of assuming a controller type always contains a gyro.
+	for candidate: int in candidates: # Preserves active player-controller ordering instead of letting a secondary built-in gyro steal inspection ownership.
 		var motion_data: Dictionary = _get_motion_data(candidate) # Reads one current motion struct from this potential controller.
 		if not _motion_data_has_valid_orientation(motion_data): # Rejects zero-filled or malformed motion data from devices without a usable gyro.
 			continue # Checks the next connected Steam Input handle without changing session state.
-		var input_type: int = _get_input_type(candidate) # Reads hardware classification only after proving the candidate exposes valid motion.
-		var priority: int = _device_priority(input_type) # Prefers Deck/new Valve hardware, then original Steam Controller, then other gyro-capable Steam Input devices.
-		if priority < best_priority: # Replaces the current candidate only when the new device better matches the requested Valve gyro hardware.
-			best_handle = candidate # Stores the preferred valid Steam Input handle.
-			best_type = input_type # Stores its classification for concise inspection hints and diagnostics.
-			best_priority = priority # Prevents lower-priority non-Valve devices from replacing a discovered Steam controller.
-	if best_handle == 0: # Handles connected controllers that all lack valid motion sensors.
-		return false # Leaves inspection on right-stick/mouse rotation until a gyro-capable controller appears.
-	_controller_handle = best_handle # Commits the selected physical controller for frame-by-frame motion sampling.
-	_controller_type = best_type # Commits matching hardware classification for labels and later diagnostics.
-	_has_reference_orientation = false # Makes this newly selected controller's first sample establish neutral orientation.
-	if OS.is_debug_build(): # Emits one concise development diagnostic without adding release-build console noise.
-		print("Steam inspection gyro ready: handle=%d type=%d label=%s" % [_controller_handle, _controller_type, get_device_label()]) # Identifies which Steam Input device actually owns motion during testing.
-	return true # Confirms that automatic inspection gyro rotation can begin after its neutral reference sample.
+		_controller_handle = candidate # Commits the first usable motion device, which corresponds to the earliest active gamepad slot whenever Steam provides that mapping.
+		_controller_type = _get_input_type(candidate) # Stores hardware classification for concise hints and diagnostics without restricting future controller support.
+		_has_reference_orientation = false # Makes this newly selected controller's first sample establish neutral orientation.
+		if OS.is_debug_build(): # Emits one concise development diagnostic without adding release-build console noise.
+			print("Steam inspection gyro ready: handle=%d type=%d label=%s" % [_controller_handle, _controller_type, get_device_label()]) # Identifies which Steam Input device actually owns motion during testing.
+		return true # Confirms that automatic inspection gyro rotation can begin after its neutral reference sample.
+	return false # Leaves inspection on right-stick/mouse rotation when no connected Steam Input controller exposes a valid motion quaternion.
 
 func _add_candidate(candidates: Array[int], handle: int) -> void: # Adds one valid Steam Input handle exactly once while preserving discovery priority order.
 	if handle == 0 or candidates.has(handle): # Rejects Steam's invalid zero handle and duplicates returned through multiple enumeration paths.
@@ -150,24 +140,19 @@ func _get_motion_data(handle: int) -> Dictionary: # Reads one GodotSteam motion 
 	if handle == 0 or not Steam.has_method(&"getMotionData"): # Rejects invalid handles and addon builds without motion-data support.
 		return {} # Returns an empty structure that naturally fails orientation validation.
 	var motion_value: Variant = Steam.call(&"getMotionData", handle) # Requests Steamworks InputMotionData_t through GodotSteam without compile-time dependence on extension method metadata.
-	return motion_value as Dictionary if motion_value is Dictionary else {} # Preserves the raw dictionary only when the addon returned the expected structured data.
+	if motion_value is Dictionary: # Accepts only the structured Godot dictionary form expected from the GodotSteam bridge.
+		return motion_value # Returns the already validated runtime type through the strongly typed method boundary.
+	return {} # Treats any unexpected addon return shape as unavailable motion data rather than raising a cast error.
 
 func _get_input_type(handle: int) -> int: # Reads Steam's hardware classification when available without making it a requirement for gyro support.
 	if handle == 0 or not Steam.has_method(&"getInputTypeForHandle"): # Supports GodotSteam builds that expose motion data but omit hardware-type helpers.
-		return 0 # Uses the generic Steam Input gyro label and lowest preference tier.
+		return 0 # Uses the generic Steam Input gyro label and preserves support through actual motion-data validation.
 	return int(Steam.call(&"getInputTypeForHandle", handle)) # Returns the current Steamworks ESteamInputType integer unchanged.
-
-func _device_priority(input_type: int) -> int: # Ranks connected motion devices so the requested Valve hardware wins automatically when multiple gyros are attached.
-	if input_type == STEAM_INPUT_TYPE_STEAM_DECK_CONTROLLER: # Covers Steam Deck-class hardware and newer Valve controller hardware currently surfaced through this type.
-		return 0 # Gives the current Valve motion-device class first priority.
-	if input_type == STEAM_INPUT_TYPE_STEAM_CONTROLLER: # Recognizes the original Steam Controller independently from Deck-class hardware.
-		return 1 # Gives original Steam Controller second priority ahead of unrelated gyro-capable devices.
-	return 2 # Still permits other Steam Input gyro controllers as a harmless fallback when no Valve gyro is connected.
 
 func _motion_data_has_valid_orientation(data: Dictionary) -> bool: # Distinguishes a real normalized sensor-fused quaternion from zero-filled unsupported motion data.
 	if data.is_empty(): # Rejects missing motion structures immediately.
 		return false # Prevents invalid dictionary field reads and quaternion construction.
-	var x: float = _motion_field(data, "rotQuatX", "rot_quat_x") # Reads GodotSteam's established camelCase field while accepting snake_case compatibility aliases.
+	var x: float = _motion_field(data, "rotQuatX", "rot_quat_x") # Reads GodotSteam's established camelCase field while accepting a snake_case compatibility alias.
 	var y: float = _motion_field(data, "rotQuatY", "rot_quat_y") # Reads the sensor-fused Y quaternion component.
 	var z: float = _motion_field(data, "rotQuatZ", "rot_quat_z") # Reads the sensor-fused Z quaternion component.
 	var w: float = _motion_field(data, "rotQuatW", "rot_quat_w") # Reads the sensor-fused scalar quaternion component.
@@ -184,6 +169,6 @@ func _motion_field(data: Dictionary, camel_case: String, snake_case: String) -> 
 		return float(data.get(camel_case, 0.0)) # Converts the raw Variant into the strongly typed float used by quaternion math.
 	return float(data.get(snake_case, 0.0)) # Falls back to a common snake_case bridge spelling when present, otherwise returning a safe zero.
 
-func _steam_delta_to_godot(steam_delta: Quaternion) -> Quaternion: # Converts Steam controller axes (right/forward/up) into Godot inspection axes (right/up/back) while preserving physical rotation magnitude.
-	var axis_conversion: Quaternion = Quaternion(Vector3.RIGHT, -PI * 0.5) # Rotates Steam's positive-forward Y and positive-up Z basis into Godot's negative-forward Z and positive-up Y basis.
-	return (axis_conversion * steam_delta * axis_conversion.inverse()).normalized() # Conjugates the incremental physical rotation into Godot coordinates without Euler-angle conversion or gimbal locking.
+func _steam_delta_to_godot(steam_delta: Quaternion) -> Quaternion: # Converts Steam's incremental sensor-fused rotation into the Godot inspection basis without using Euler angles.
+	var axis_conversion: Quaternion = Quaternion(Vector3.RIGHT, -PI * 0.5) # Maps the Steam motion frame into the inspection world's right/up/back convention while preserving a proper rotational basis.
+	return (axis_conversion * steam_delta * axis_conversion.inverse()).normalized() # Conjugates the incremental physical rotation so pitch, yaw, and roll remain a single unrestricted quaternion.
