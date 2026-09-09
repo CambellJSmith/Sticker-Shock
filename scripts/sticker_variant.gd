@@ -58,3 +58,11 @@ static func roll_random_edition(random_number_generator: RandomNumberGenerator) 
 	if roll < GOLD_PULL_CHANCE + SILVER_PULL_CHANCE + RAINBOW_PULL_CHANCE: # Extends the cumulative interval by the rainbow one-percent probability.
 		return EDITION_RAINBOW # Awards rainbow independently from the metallic finishes.
 	return EDITION_NORMAL # Leaves every remaining pull as an ordinary printed copy.
+
+static func apply_material(sticker_mesh: StickerMesh, sticker_key: String) -> void: # Applies the exact saved edition to an already configured sticker mesh without changing geometry or peel behavior.
+	if sticker_mesh == null: # Rejects missing renderers before reading their material.
+		return # Leaves invalid callers harmlessly unchanged.
+	var material: ShaderMaterial = sticker_mesh.material_override as ShaderMaterial # Reads the per-copy shader material created by StickerMesh.configure.
+	if material == null: # Protects against an unexpected renderer/material configuration.
+		return # Leaves the mesh using its configured normal appearance.
+	material.set_shader_parameter("edition", get_edition(sticker_key)) # Selects normal, rainbow, silver, or gold in the shared GPU shader.
