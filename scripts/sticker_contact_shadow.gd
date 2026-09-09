@@ -21,6 +21,7 @@ func configure(sticker_size: Vector2, sticker_texture: Texture2D) -> void: # Con
 	_material.shader = CONTACT_SHADOW_SHADER # Binds the shared compatibility-safe unshaded contact-shadow shader.
 	_material.render_priority = -1 # Draws the transparent shadow before the sticker material so the sticker remains visually on top.
 	_material.set_shader_parameter("sticker_texture", sticker_texture) # Supplies the same authored alpha used by rendering, peeling, and packing.
+	_material.set_shader_parameter("sticker_size", safe_size) # Supplies original physical dimensions so the shader can evaluate the exact peel fold in sticker-local space.
 	var texture_width: float = maxf(float(sticker_texture.get_width()), 1.0) # Reads source width once so the fragment shader never queries texture dimensions.
 	var texture_height: float = maxf(float(sticker_texture.get_height()), 1.0) # Reads source height once so blur spacing stays correct for non-square artwork.
 	_material.set_shader_parameter("sticker_texel_size", Vector2(1.0 / texture_width, 1.0 / texture_height)) # Supplies normalized source-pixel size as a constant per-copy uniform.
@@ -29,13 +30,27 @@ func configure(sticker_size: Vector2, sticker_texture: Texture2D) -> void: # Con
 	material_override = _material # Applies the shadow material to the complete two-triangle helper mesh.
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF # Prevents the synthetic contact shadow from casting another real shadow.
 	gi_mode = GeometryInstance3D.GI_MODE_DISABLED # Keeps the helper out of global-illumination contribution work.
-	visible = true # Shows the contact shadow immediately for reconstructed resting stickers.
+	show_shadow() # Starts reconstructed resting stickers with their complete contact shadow visible.
 
-func show_shadow() -> void: # Restores the contact shadow when the physical sticker has fully returned to the page.
-	visible = true # Enables the cheap helper draw only while the sticker is resting flat.
+func set_peel(grab_local: Vector2, drag_local: Vector2) -> void: # Clips the contact shadow to exactly the material still resting on the page during an active peel.
+	var drag_distance: float = drag_local.length() # Measures the same local pointer displacement used by the physical peel shader.
+	if drag_distance <= 0.0001: # Treats a grabbed but unmoved sticker as fully attached.
+		show_shadow() # Preserves the complete resting contact shadow until a meaningful peel actually begins.
+		return # Avoids unstable peel-direction normalization at effectively zero drag.
+	var peel_direction: Vector2 = drag_local / drag_distance # Recreates the normalized physical peel direction once on the CPU for all shadow fragments.
+	var active_curl_width: float = minf(StickerMesh.PEEL_CURL_WIDTH, maxf(drag_distance * StickerMesh.PEEL_CURL_GROWTH, 0.002)) # Mirrors the physical shader's changing curl width exactly.
+	var fold_projection: float = grab_local.dot(peel_direction) + (drag_distance + active_curl_width) * 0.5 # Recreates the moving boundary separating lifted material from material still touching the page.
+	_material.set_shader_parameter("peel_direction", peel_direction) # Supplies the normalized fold direction without repeating normalization in every fragment.
+	_material.set_shader_parameter("fold_projection", fold_projection) # Supplies the exact physical fold position used to remove shadow from the peeled side.
+	_material.set_shader_parameter("peel_active", true) # Enables fold-aware alpha clipping while any meaningful peel displacement exists.
+	visible = true # Keeps the surviving attached-area contact shadow rendered throughout the peel.
 
-func hide_shadow() -> void: # Removes the contact shadow while the sticker is peeling, carried, returning, or airborne.
-	visible = false # Leaves raised-state depth entirely to the existing real-time directional-light shadow.
+func show_shadow() -> void: # Restores the complete contact shadow when the physical sticker is fully attached to the page.
+	_material.set_shader_parameter("peel_active", false) # Disables fold clipping so the entire authored silhouette contributes again.
+	visible = true # Enables the cheap helper draw for the fully attached sticker.
+
+func hide_shadow() -> void: # Removes the contact shadow once no sticker material remains attached to the page.
+	visible = false # Leaves fully detached and airborne depth entirely to the existing real-time directional-light shadow.
 
 func _get_shared_unit_mesh() -> ArrayMesh: # Returns the single immutable unit quad used by every contact-shadow instance.
 	if _shared_unit_mesh == null: # Detects the first contact shadow created in this process.
