@@ -1,4 +1,4 @@
-class_name BookHUD extends Control # Owns book guidance, page navigation, controller cursor presentation, and first-session onboarding.
+class_name BookHUD extends Control # Owns book guidance, page navigation, controller cursor presentation, peel-edge targeting, and first-session onboarding.
 
 @onready var _status: Label = %status as Label # Presents the current sticker interaction in plain language.
 @onready var _hint: Label = %hint as Label # Gives supporting controls without covering the book.
@@ -7,6 +7,7 @@ class_name BookHUD extends Control # Owns book guidance, page navigation, contro
 @onready var _cancel: GameButton = %cancel_button as GameButton # Cancels placement without consuming its pending copy.
 @onready var _empty: Control = %empty as Control # Introduces collecting only when the book is genuinely empty.
 @onready var _controller_cursor: Control = %controller_cursor as Control # Displays the right-stick physical interaction point independently from native UI focus.
+@onready var _peel_target: TextureRect = %peel_target as TextureRect # Displays the glowing white alpha-edge point that will become the next peel origin.
 
 var _book_state: StickerBookState # Reads persisted page and placement state.
 var _placing: bool = false # Tracks whether manual placement owns the book interaction.
@@ -19,6 +20,7 @@ func configure(world: BookWorld, book_state: StickerBookState, controller: GameC
 	_cancel.bind_action(world.cancel_manual_placement) # Returns a selected copy to its open pack.
 	(%open_packs as GameButton).bind_action(controller.show_shop) # Gives the blank book a clear next step.
 	_controller_cursor.visible = false # Keeps the physical right-stick cursor hidden until controller input owns the book.
+	_peel_target.visible = false # Keeps the edge peel handle absent until a settled sticker is actually targeted.
 	refresh() # Initializes page bounds and the onboarding state.
 
 func refresh() -> void: # Updates navigation and context guidance only when page, placement, or input mode changes.
@@ -35,6 +37,8 @@ func refresh() -> void: # Updates navigation and context guidance only when page
 func set_placing(placing: bool) -> void: # Switches between normal browsing and manual-placement controls.
 	_placing = placing # Retains placement mode for onboarding visibility.
 	_cancel.visible = placing # Offers cancellation only when a copy is being positioned.
+	if placing: # Prevents an old peel handle remaining visible underneath a newly carried collection sticker.
+		_peel_target.visible = false # Gives manual placement exclusive physical targeting presentation.
 	refresh() # Synchronizes the empty-book state and current controller/mouse hint with interaction mode.
 
 func set_controller_mode(controller_mode: bool) -> void: # Updates book guidance when the application changes between controller and mouse/keyboard ownership.
@@ -50,6 +54,13 @@ func set_controller_cursor(screen_position: Vector2, cursor_visible: bool) -> vo
 	if not cursor_visible: # Skips layout updates when the cursor is intentionally hidden.
 		return # Leaves its previous position cached harmlessly for later reactivation.
 	_controller_cursor.position = screen_position - _controller_cursor.size * 0.5 # Centers the crosshair on the exact screen-space ray used for picking, peeling, and placement.
+
+func set_peel_target(screen_position: Vector2, target_visible: bool, armed: bool = false) -> void: # Places the glowing peel-origin preview on the exact projected alpha-edge point selected by mouse or controller aim.
+	_peel_target.visible = target_visible # Shows the marker only while a settled sticker owns edge targeting or a press has frozen that edge point.
+	if not target_visible: # Skips position and emphasis work after the target is intentionally cleared.
+		return # Leaves its cached screen position harmlessly available for the next target.
+	_peel_target.position = screen_position - _peel_target.size * 0.5 # Centers the marker exactly over the world-space alpha-border point projected by the book camera.
+	_peel_target.modulate = Color(1.0, 1.0, 1.0, 1.0 if armed else 0.82) # Brightens the glow on press to show that this edge point has been frozen as the pending peel origin.
 
 func set_status(message: String) -> void: # Updates contextual feedback without exposing label nodes.
 	_status.text = message # Shows concise interaction guidance in the footer.
