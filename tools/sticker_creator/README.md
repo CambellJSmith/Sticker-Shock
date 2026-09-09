@@ -29,7 +29,7 @@ Normal random pack pulls use these rarity weights:
 
 If a specific pack contains no stickers of one of the weighted rarities, the available rarity weights are automatically re-normalized. `Unique` stickers remain valid authored content but are never selected by the normal random-pack system.
 
-Before artwork is added to the game, the selected die-cut border is generated and the finished image is quantized to a palette of at most 256 colours. Pillow's libimagequant backend is preferred when available, with its RGBA octree quantizer used as the fallback. The original PNG is preserved separately so border edits always start from the original pixels.
+Before artwork is added to the game, source alpha is cleaned into a binary silhouette: pixels with alpha 128 or higher become fully opaque, and pixels below 128 become fully transparent. The selected die-cut border is then generated and the finished image is quantized to a palette of at most 256 colours. Pillow's libimagequant backend is preferred when available, with its RGBA octree quantizer used as the fallback. The original PNG is preserved separately so border edits always start from the original pixels.
 
 ## die-cut borders
 
@@ -40,7 +40,7 @@ New stickers automatically start with a white border, a width of 12 pixels, and 
 - **colour:** a clickable swatch, preset colour grid, native custom colour picker, and editable `#rrggbb` field;
 - **export preview:** the finished palette-converted sticker on a transparency checkerboard, including its final pixel dimensions.
 
-The processor uses the PNG's alpha silhouette, fills enclosed holes in the backing, grows the outline using Euclidean distance, and smooths its signed distance field. It then offsets the smooth contour outward enough to enclose the complete grown silhouette. Jagged artwork stays intact inside a smooth, antialiased backing; smoothing never clips artwork or adds its original rough contour back onto the cut edge. Exterior indentations larger than the smoothing scale remain recognisable. Nearby shapes may join as the backing grows; widely separated elements remain separate.
+The processor first applies the binary alpha rule, then uses that cleaned silhouette, fills enclosed holes in the backing, grows the outline using Euclidean distance, and smooths its signed distance field. It then offsets the smooth contour outward enough to enclose the complete grown silhouette. Jagged artwork stays intact inside a smooth, antialiased backing; smoothing never clips artwork or adds its original rough contour back onto the cut edge. Exterior indentations larger than the smoothing scale remain recognisable. Nearby shapes may join as the backing grows; widely separated elements remain separate.
 
 Width is a minimum growth distance. Rough points or strong smoothing can make the backing wider than that minimum. The canvas expands where needed, with a transparent sampling margin. The illustration is never resized or filtered during border construction. The game continues to fit the finished image to its standard physical sticker size, so the illustration can occupy a smaller portion of that size after a border is added.
 
@@ -52,9 +52,9 @@ Preview work runs on a background worker with debounced updates and cached cut g
 
 Individual imports and replacement artwork use the same processing function as batch import. The batch dialog includes its own colour, width, smoothing, and preview controls. Its artwork selector lets you inspect each image before applying one frozen recipe to the entire batch. Width and smoothing are measured in each source image's pixels, so the same pixel width appears proportionally thinner on higher-resolution images.
 
-Editing an authored sticker restores its original artwork and border settings. Changing colour or width renders a fresh border; metadata-only edits reuse the existing exported PNG without recompressing it. Original artwork and recipes use stable numeric filenames, so renaming a sticker does not lose them. Selecting an already-generated tool PNG resolves its preserved original instead of adding another border over the existing one.
+Editing an authored sticker restores its original artwork and border settings. Changing colour or width renders a fresh border; metadata-only edits reuse an already-current exported PNG without recompressing it. Older authoring records are rendered once with the binary alpha rule on their next edit. Original artwork and recipes use stable numeric filenames, so renaming a sticker does not lose them. Selecting an already-generated tool PNG resolves its preserved original instead of adding another border over the existing one.
 
-Older stickers without authoring records open with width 0, retaining their existing appearance. Increasing their width explicitly creates a border and preserves the previously imported image as their original. Previously baked borders cannot be removed automatically; select the unbordered source image when replacing that artwork.
+Older stickers without authoring records open with width 0. Saving one through the tool archives its existing pixels as the original and writes a cleaned binary-alpha runtime PNG; increasing its width also creates a border from those archived source pixels. Previously baked borders cannot be removed automatically; select the unbordered source image when replacing that artwork.
 
 The original image, border recipe, processed PNG, and Godot definition are saved as one group with rollback for ordinary write failures. Deleting a sticker removes its source and recipe as well as its runtime files. The tool's Commit action includes authoring records in its normal pull request workflow.
 

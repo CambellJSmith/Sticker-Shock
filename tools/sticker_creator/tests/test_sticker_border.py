@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw # Builds deterministic artwork fixtures without
 from scipy import ndimage # Measures minimum backing coverage independently of the processor's output.
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1])) # Loads the tool in the same way as its launcher.
-from sticker_border import BorderSettings, build_sticker_shape # Exercises the public geometry API.
+from sticker_border import ALPHA_THRESHOLD, BorderSettings, build_sticker_shape, threshold_alpha # Exercises the public geometry API.
 from sticker_png import png_bytes, sticker_palette # Exercises final exported palette and transparency.
 
 
@@ -68,13 +68,27 @@ class StickerBorderTests(unittest.TestCase): # Checks visual invariants that mat
         self.assertTrue(np.any((pixels[:, :, 3] > 0) & (pixels[:, :, 3] < 255))) # Requires a clean partial-alpha transition at the cut edge.
         self.assertTrue(np.all(pixels[:, :, 3][np.asarray(shape.artwork.getchannel("A")) > 0] == 255)) # Keeps all source pixels enclosed by opaque paper after quantization.
 
-    def test_border_disabled_preserves_source_canvas_and_transparency(self) -> None: # Protects old artwork and the explicit no-border choice.
+    def test_alpha_threshold_keeps_half_opaque_pixels_and_removes_weaker_pixels(self) -> None: # Protects the exact binary silhouette rule at both sides of its boundary.
+        source: Image.Image = Image.new("RGBA", (3, 1)) # Creates one pixel below, at, and above the threshold.
+        source.putpixel((0, 0), (34, 82, 140, ALPHA_THRESHOLD - 1)) # Supplies a nearly transparent pixel that must disappear.
+        source.putpixel((1, 0), (34, 82, 140, ALPHA_THRESHOLD)) # Supplies the exact half-opaque boundary that must remain.
+        source.putpixel((2, 0), (34, 82, 140, 255)) # Supplies an already opaque pixel that must remain unchanged.
+        cleaned = threshold_alpha(source) # Applies the same cleanup used by preview and export.
+        self.assertEqual(cleaned.getpixel((0, 0)), (0, 0, 0, 0)) # Requires removed pixels to be fully transparent, including hidden RGB.
+        self.assertEqual(cleaned.getpixel((1, 0)), (34, 82, 140, 255)) # Requires the threshold boundary to become fully opaque.
+        self.assertEqual(cleaned.getpixel((2, 0)), (34, 82, 140, 255)) # Preserves already opaque artwork exactly.
+        self.assertEqual(source.getpixel((0, 0)), (34, 82, 140, ALPHA_THRESHOLD - 1)) # Confirms cleanup does not mutate the user's source image.
+
+    def test_border_disabled_uses_thresholded_alpha_and_preserves_canvas(self) -> None: # Protects the explicit no-border choice while enforcing binary source alpha.
         source: Image.Image = Image.new("RGBA", (43, 37)) # Creates a source with intentional transparent padding.
-        source.putpixel((21, 18), (34, 82, 140, 93)) # Gives the source a semitransparent pixel that must remain unchanged.
+        source.putpixel((21, 18), (34, 82, 140, 93)) # Gives the source a weak semitransparent pixel that must be removed.
+        source.putpixel((22, 18), (34, 82, 140, 200)) # Gives the source a stronger pixel that must become fully opaque.
         shape = build_sticker_shape(source, BorderSettings(width=0)) # Requests no additional backing or canvas expansion.
         self.assertFalse(shape.has_border) # Records that border processing was explicitly disabled.
-        self.assertEqual(shape.composite("#ff0000").tobytes(), source.tobytes()) # Ensures choosing a colour cannot affect border-free artwork.
+        self.assertEqual(shape.composite("#ff0000").getpixel((21, 18)), (0, 0, 0, 0)) # Removes below-threshold artwork from border-free output.
+        self.assertEqual(shape.composite("#ff0000").getpixel((22, 18)), (34, 82, 140, 255)) # Makes retained border-free artwork fully opaque.
         self.assertEqual(shape.artwork.size, source.size) # Preserves intentional original padding exactly.
+        self.assertEqual(source.getpixel((21, 18)), (34, 82, 140, 93)) # Keeps the caller's original pixels untouched.
 
     def test_opaque_rgb_and_indexed_pngs_are_supported(self) -> None: # Covers common PNG modes accepted by the existing importer.
         for mode in ("RGB", "P"): # Exercises opaque colour images and indexed artwork.
