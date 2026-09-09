@@ -1,5 +1,4 @@
-class_name SteamAchievements # Owns Sticker-Shock achievement definitions and retries Steam unlocks without gameplay signal wiring.
-extends Node # Runs as an autoload so pending achievement work can survive scene changes and wait for Steam stats readiness.
+extends Node # Owns Sticker-Shock achievement definitions and retries Steam unlocks without gameplay signal wiring.
 
 const FIRST_STICKER: StringName = &"STICKER_SHOCK_FIRST_STICKER" # Identifies the Steamworks achievement awarded when the player owns their first sticker copy.
 const RETRY_INTERVAL_SECONDS: float = 0.5 # Limits failed Steam achievement retries while the asynchronous user-stats cache becomes ready.
