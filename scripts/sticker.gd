@@ -67,7 +67,6 @@ func can_begin_drag() -> bool: # Exposes whether this sticker is physically sett
 func begin_drag(page_world_point: Vector3) -> void: # Captures the clicked material point and establishes a stable reference transform for the peel.
 	if not can_begin_drag(): # Rejects grabs while the sticker is still autonomously attaching to the page.
 		return # Leaves the current physical animation untouched until it is complete.
-	_contact_shadow.hide_shadow() # Removes the synthetic resting shadow before real raised geometry and directional lighting take over.
 	_state = InteractionState.PEELING # Starts the attached peel phase for the new pointer gesture.
 	_drag_start_world = page_world_point # Stores the pointer location on the page plane at grab time.
 	_drag_origin_transform = global_transform # Stores the complete root transform before any peel-driven visual changes occur.
@@ -79,6 +78,7 @@ func begin_drag(page_world_point: Vector3) -> void: # Captures the clicked mater
 	_visual.clear_turnover() # Guarantees that a resting sticker starts every peel printed-face-up and unrotated.
 	_landing_preview.hide_preview() # Keeps the landing marker hidden until the sticker has actually become a free carried sheet.
 	_visual.set_peel(_grab_local, Vector2.ZERO) # Sends the exact click point to the shader before the cursor starts moving.
+	_contact_shadow.set_peel(_grab_local, Vector2.ZERO) # Keeps the full contact shadow visible until actual peel displacement begins.
 
 func update_drag(page_world_point: Vector3) -> void: # Converts pointer motion into attached curl deformation or irreversible detached carrying.
 	if _state == InteractionState.CARRIED: # Keeps a fully detached sticker following the pointer without ever reattaching during the same button hold.
@@ -93,6 +93,7 @@ func update_drag(page_world_point: Vector3) -> void: # Converts pointer motion i
 	if drag_distance <= 0.0001: # Avoids unstable direction calculations when the pointer is effectively still at the grab point.
 		_current_local_drag = Vector2.ZERO # Keeps the material exactly flat while no meaningful drag direction exists.
 		_visual.set_peel(_grab_local, _current_local_drag) # Preserves the clicked material point while keeping the shader on its flat path.
+		_contact_shadow.set_peel(_grab_local, _current_local_drag) # Keeps the complete contact shadow while no material has actually lifted.
 		return # Waits for a meaningful drag before calculating the full-peel boundary.
 	var peel_direction: Vector2 = local_drag / drag_distance # Defines the current direction in which the sticker is being peeled.
 	var active_curl_width: float = minf(StickerMesh.PEEL_CURL_WIDTH, maxf(drag_distance * StickerMesh.PEEL_CURL_GROWTH, 0.002)) # Reproduces the shader's current bend width exactly so CPU contact logic and rendered geometry share one moving fold.
@@ -100,6 +101,7 @@ func update_drag(page_world_point: Vector3) -> void: # Converts pointer motion i
 		_current_local_drag = local_drag # Lets the shader use the complete pointer displacement during the attached peel.
 		global_transform = _drag_origin_transform # Holds the physical root at its original attachment location while real sticker material still touches the page.
 		_visual.set_peel(_grab_local, _current_local_drag) # Updates the GPU curl from the exact clicked point and current drag vector.
+		_contact_shadow.set_peel(_grab_local, _current_local_drag) # Removes contact shadow only from material that has crossed onto the lifted side of the same fold.
 		return # Waits only until the fold crosses the final visible material point, with no extra curl-clearance distance.
 	_begin_carry(page_world_point, peel_direction, active_curl_width) # Detaches on the first frame with zero unpeeled material and immediately begins the free-sheet turnover.
 
@@ -161,6 +163,7 @@ func _process(delta: float) -> void: # Advances only the lightweight turnover an
 
 func _begin_carry(page_world_point: Vector3, peel_direction: Vector2, active_curl_width: float) -> void: # Converts the just-detached shader peel into a free sheet on the exact frame the final page contact disappears.
 	_state = InteractionState.CARRIED # Locks the sticker into detached behaviour for the remainder of this button hold.
+	_contact_shadow.hide_shadow() # Removes the final contact-shadow remnants exactly when no visible sticker material remains attached to the page.
 	_carry_fold_axis_local = Vector2(-peel_direction.y, peel_direction.x).normalized() # Stores the exact fold axis around which the fully peeled reverse-facing sheet must turn over.
 	_turnover_elapsed = 0.0 # Starts the physical turnover at the first detached frame.
 	_turnover_angle = PI # Represents the newly detached sheet as a flat adhesive-side-up surface before it turns over.
@@ -200,6 +203,7 @@ func _process_return(delta: float) -> void: # Relaxes an incomplete peel back on
 	var eased_progress: float = 1.0 - pow(1.0 - linear_progress, 3.0) # Applies cubic ease-out so the released paper initially snaps back then finishes gently.
 	_current_local_drag = _return_start_drag.lerp(Vector2.ZERO, eased_progress) # Reduces the shader deformation continuously toward the original flat attached material state.
 	_visual.set_peel(_grab_local, _current_local_drag) # Sends the current return pose to the GPU without rebuilding any mesh data.
+	_contact_shadow.set_peel(_grab_local, _current_local_drag) # Expands the contact shadow back across the same material area as the curl relaxes onto the page.
 	if linear_progress >= 1.0: # Finalizes the original attachment once all curl deformation has disappeared.
 		_current_local_drag = Vector2.ZERO # Clears the completed partial-peel displacement for the next interaction.
 		_visual.clear_peel() # Returns the shader exactly to its undeformed fast path.
@@ -207,7 +211,7 @@ func _process_return(delta: float) -> void: # Relaxes an incomplete peel back on
 		_landing_preview.hide_preview() # Guarantees an incomplete peel never leaves a stale landing marker behind.
 		global_transform = _drag_origin_transform # Restores the exact transform present before the incomplete peel began.
 		_rest_height = global_position.y # Preserves the current stack layer as the attachment height after the exact transform restoration.
-		_contact_shadow.show_shadow() # Restores the small contact shadow only after the sticker is fully flat on its original attachment.
+		_contact_shadow.show_shadow() # Restores the complete small contact shadow after the sticker is fully flat on its original attachment.
 		_state = InteractionState.RESTING # Makes the fully reattached sticker available for another click.
 
 func _process_landing(delta: float) -> void: # Performs the requested little upward bounce followed by an accelerating slam flat onto the new page position.
