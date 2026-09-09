@@ -131,14 +131,15 @@ shadow_enabled = false
 
 [node name="details_panel" type="PanelContainer" parent="."]
 layout_mode = 1
-anchors_preset = 9
 anchor_left = 1.0
 anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = -374.0
 offset_top = 88.0
 offset_right = -24.0
 offset_bottom = -86.0
 grow_horizontal = 0
+grow_vertical = 2
 
 [node name="margin" type="MarginContainer" parent="details_panel"]
 layout_mode = 2
