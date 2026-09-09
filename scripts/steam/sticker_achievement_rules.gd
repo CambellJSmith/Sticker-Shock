@@ -2,9 +2,7 @@ class_name StickerAchievementRules # Evaluates Sticker-Shock achievement conditi
 extends RefCounted # Keeps the rule set allocation-free apart from small temporary collections created during explicit progression synchronization.
 
 const FIRST_STICKER: StringName = &"STICKER_SHOCK_FIRST_STICKER" # Awards the first collected physical sticker copy.
-const FIRST_PACK: StringName = &"STICKER_SHOCK_FIRST_PACK" # Awards the first successfully opened paid or free sticker pack.
-const FIRST_PAID_PACK: StringName = &"STICKER_SHOCK_FIRST_PAID_PACK" # Awards the first successfully purchased sticker pack.
-const FIRST_FREE_PACK: StringName = &"STICKER_SHOCK_FIRST_FREE_PACK" # Awards the first successfully claimed free sticker pack.
+const FIRST_PACK: StringName = &"STICKER_SHOCK_FIRST_PACK" # Awards opening the first sticker pack, recoverable from current random-pull ownership and durable event history.
 const FIRST_BOOK_PLACEMENT: StringName = &"STICKER_SHOCK_FIRST_BOOK_PLACEMENT" # Awards the first physical sticker committed to the persistent book.
 const COLLECTION_10_PERCENT: StringName = &"STICKER_SHOCK_COLLECTION_10_PERCENT" # Awards discovery of at least ten percent of the current authored sticker catalogue.
 const COLLECTION_25_PERCENT: StringName = &"STICKER_SHOCK_COLLECTION_25_PERCENT" # Awards discovery of at least one quarter of the current authored sticker catalogue.
@@ -29,9 +27,9 @@ const COMPLETE_ONE_PACK: StringName = &"STICKER_SHOCK_COMPLETE_ONE_PACK" # Award
 const ALL_RARITIES: StringName = &"STICKER_SHOCK_ALL_RARITIES" # Awards discovering at least one sticker from every rarity currently represented in the catalogue.
 const FIRST_MARKET_SALE: StringName = &"STICKER_SHOCK_FIRST_MARKET_SALE" # Awards the first successful loose-copy sale at the collector exchange.
 
-const EVENT_API_NAMES: Array[StringName] = [FIRST_PACK, FIRST_PAID_PACK, FIRST_FREE_PACK, FIRST_MARKET_SALE] # Lists event-history achievements that cannot always be reconstructed from current collection state alone.
+const EVENT_API_NAMES: Array[StringName] = [FIRST_PACK, FIRST_MARKET_SALE] # Lists event-history achievements worth preserving when current state alone may later lose proof that they happened.
 
-static func is_event_api_name(api_name: StringName) -> bool: # Reports whether one achievement needs local event-history persistence for offline reconciliation.
+static func is_event_api_name(api_name: StringName) -> bool: # Reports whether one achievement uses local event-history persistence for offline reconciliation.
 	return EVENT_API_NAMES.has(api_name) # Accepts only the controlled event achievements authored by this rule set.
 
 static func evaluate_progress(economy: StickerEconomy, catalog: StickerCatalog, book_state: StickerBookState) -> Array[StringName]: # Returns every state-derived achievement currently satisfied by authoritative progression and current authored content.
@@ -49,6 +47,7 @@ static func evaluate_progress(economy: StickerEconomy, catalog: StickerCatalog, 
 	var current_catalog_copy_count: int = 0 # Counts physical copies belonging to current authored designs so stale removed content cannot create a false duplicate achievement.
 	var unique_total: int = 0 # Counts current authored Unique designs for the dynamically scaling all-Unique condition.
 	var unique_owned: int = 0 # Counts current Unique designs actually discovered by the player.
+	var has_random_pull_discovery: bool = false # Tracks whether current ownership proves the player has received at least one normally pack-pullable design.
 	var has_rainbow: bool = false # Tracks whether any current design has an owned rainbow copy.
 	var has_silver: bool = false # Tracks whether any current design has an owned silver copy.
 	var has_gold: bool = false # Tracks whether any current design has an owned gold copy.
@@ -85,6 +84,7 @@ static func evaluate_progress(economy: StickerEconomy, catalog: StickerCatalog, 
 		if not design_discovered: # Skips ownership-only metrics for undiscovered designs while retaining their catalogue denominator data above.
 			continue # Advances to the next current authored sticker.
 		discovered_count += 1 # Counts this design exactly once regardless of duplicate copies or premium finishes.
+		has_random_pull_discovery = has_random_pull_discovery or is_random_pull_design # Provides a reconstructible proof of pack participation for existing saves that still own at least one pack-pullable design.
 		if not pack_name.is_empty(): # Records pack representation only for stickers with an authored pack assignment.
 			discovered_pack_names[pack_name] = true # Marks this pack represented without hard-coding current pack count.
 		if not rarity_name.is_empty(): # Records rarity representation only for meaningful authored rarity labels.
@@ -97,6 +97,8 @@ static func evaluate_progress(economy: StickerEconomy, catalog: StickerCatalog, 
 		has_full_finish = has_full_finish or (normal_count > 0 and rainbow_count > 0 and silver_count > 0 and gold_count > 0) # Detects one design represented in every currently supported finish.
 		has_legendary = has_legendary or rarity_name == "Legendary" # Detects discovery of the established top random-pull rarity.
 		has_unique = has_unique or rarity_name == StickerCatalog.UNIQUE_RARITY # Detects discovery of any code/custom-system Unique sticker.
+	if has_random_pull_discovery: # Reconciles first-pack participation for existing saves without relying exclusively on event history introduced by this update.
+		earned.append(FIRST_PACK) # Awards the first pack milestone when current ownership proves at least one normal pack design has been received.
 	_append_fraction_achievement(earned, COLLECTION_10_PERCENT, discovered_count, catalog_count, 1, 10) # Awards ten-percent discovery using exact integer ratio comparison against the current catalogue.
 	_append_fraction_achievement(earned, COLLECTION_25_PERCENT, discovered_count, catalog_count, 1, 4) # Awards quarter completion against the current catalogue size.
 	_append_fraction_achievement(earned, COLLECTION_50_PERCENT, discovered_count, catalog_count, 1, 2) # Awards half completion against the current catalogue size.
