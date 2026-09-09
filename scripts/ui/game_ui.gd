@@ -12,7 +12,7 @@ class_name GameUI extends CanvasLayer # Coordinates navigation, modal ownership,
 var _controller: GameController # Retains the existing authoritative game coordinator.
 var _economy: StickerEconomy # Reads currency and real-world pack eligibility.
 var _catalog: StickerCatalog # Reads the discovered design count.
-var _book_state: StickerBookState # Reads book and unresolved-pack progress.
+var _book_state: StickerBookState # Reads book and active manual-placement progress.
 var _destination: String = "main_menu" # Tracks the current route for back behavior and highlighting.
 var _history: Array[String] = [] # Records the actual surfaces that opened collection or settings.
 var _nav: Dictionary[String, GameButton] = {} # Maps gameplay destinations to their persistent buttons.
@@ -28,7 +28,7 @@ func configure(controller: GameController, economy: StickerEconomy, catalog: Sti
 	_catalog = catalog # Retains the automatically discovered catalogue.
 	_book_state = book_state # Retains saved placement and pending-copy state.
 	_menu.configure(controller, economy, catalog, book_state, _navigate) # Binds title-screen navigation and progress.
-	_collection.configure(economy, catalog, show_sticker_inspection) # Binds cached collection cards to the existing inspector.
+	_collection.configure(economy, catalog, controller.begin_collection_placement, controller.get_available_collection_count) # Makes the collection the only route that starts new book placement.
 	_settings.configure(preferences, _go_back) # Preserves contextual return behavior from settings.
 	_nav = {"book": %nav_book as GameButton, "shop": %nav_shop as GameButton, "collection": %nav_collection as GameButton, "settings": %nav_settings as GameButton} # Establishes the persistent navigation mapping.
 	for destination: String in _nav: # Binds each route once through native button activation.
@@ -39,7 +39,7 @@ func configure(controller: GameController, economy: StickerEconomy, catalog: Sti
 	(%resume_button as GameButton).bind_action(hide_pause) # Restores the paused destination and focus.
 	(%pause_settings as GameButton).bind_action(_open_pause_settings) # Opens settings with a route back to pause.
 	(%pause_home as GameButton).bind_action(_navigate.bind("main_menu")) # Returns to the title screen safely.
-	(%pause_quit as GameButton).bind_action(controller.request_quit) # Resolves pending copies through the existing shutdown path.
+	(%pause_quit as GameButton).bind_action(controller.request_quit) # Resolves an interrupted collection placement through the existing shutdown path.
 	_inspection.configure_actions() # Binds native inspection buttons independently of trackball input.
 	notify_progress_changed() # Initializes static progress and countdown labels.
 
@@ -65,7 +65,7 @@ func show_destination(destination: String) -> void: # Presents a physical world 
 	for route: String in _nav: # Synchronizes the persistent selected state.
 		_nav[route].set_pressed_no_signal(route == destination) # Highlights the destination without signals.
 	if destination == "collection": # Performs collection work only on entry.
-		_collection.refresh() # Reuses cards and refreshes ownership.
+		_collection.refresh() # Reuses cards and refreshes ownership plus copies available to place.
 	elif destination == "settings": # Synchronizes saved display settings on entry.
 		_settings.refresh() # Reflects actual persisted state.
 	else: # Treats physical destinations as navigation roots.
@@ -108,10 +108,10 @@ func notify_progress_changed() -> void: # Updates progression only when authorit
 	if _economy == null: # Handles early initialization safely.
 		return # Defers presentation until dependencies are bound.
 	(%currency as Label).text = "%d coins" % _economy.get_currency() # Keeps one currency display in the persistent shell.
-	var pending: int = _book_state.get_pending_count() # Reads the unresolved pack-copy count.
-	(%pending as Label).text = "%d to place" % pending if pending > 0 else "" # Shows only actionable pending progress.
+	var pending: int = _book_state.get_pending_count() # Reads the one currently reserved collection copy, if any.
+	(%pending as Label).text = "%d to place" % pending if pending > 0 else "" # Shows only actionable manual-placement progress.
 	if _collection.is_visible_in_tree(): # Avoids collection work outside its active page.
-		_collection.refresh() # Refreshes cached card ownership after a transaction.
+		_collection.refresh() # Refreshes cached ownership and available-copy counts after a transaction or placement.
 	_menu.refresh() # Keeps the title-screen summary ready for return navigation.
 	_refresh_countdown() # Updates pack eligibility after claiming a free pack.
 
@@ -227,7 +227,7 @@ func _go_back() -> void: # Closes only the topmost surface before considering na
 			show_pause.call_deferred() # Reopens pause after the restored destination establishes focus.
 	elif not _menu.visible: # Resolves manual placement before considering a new pause layer.
 		if _controller.cancel_pending_placement(): # Gives escape and back a safe exit from manual placement.
-			return # Keeps the selected copy unresolved in its pack.
+			return # Keeps the selected copy reserved for placement.
 		show_pause() # Freezes the current physical destination.
 
 func _open_pause_settings() -> void: # Opens preferences with an explicit return to the paused destination.
@@ -248,14 +248,14 @@ func _focus_destination() -> void: # Selects the useful action for the newly vis
 	elif _settings.is_visible_in_tree(): # Prioritizes the first display option on the settings page.
 		(_settings.get_node("%fullscreen") as Control).grab_focus() # Selects the native fullscreen toggle.
 	else: # Gives physical destinations their own useful action focus.
-		_controller.focus_active_world_ui() # Selects a claim action, pending sticker, or page control.
+		_controller.focus_active_world_ui() # Selects a claim action, reveal completion, or page control.
 		if get_viewport().gui_get_focus_owner() == null: # Handles a populated single-spread book with no available page turn.
 			_nav[_destination].grab_focus() # Keeps persistent navigation immediately usable from the keyboard.
 
 func _restore_focus() -> void: # Restores a modal opener if it remains actionable.
 	if is_instance_valid(_return_focus) and _return_focus.is_visible_in_tree() and not (_return_focus is BaseButton and (_return_focus as BaseButton).disabled): # Rejects expired, hidden, and disabled openers.
 		_return_focus.grab_focus() # Returns to the exact native control the player used.
-	else: # Handles world gestures and removed pack-choice controls.
+	else: # Handles world gestures and removed reveal controls.
 		_focus_destination() # Selects the current destination's useful fallback.
 
 func _refresh_countdown() -> void: # Updates real-world eligibility without rescanning ownership every frame.
