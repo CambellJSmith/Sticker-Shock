@@ -2,10 +2,11 @@ class_name MarketHUD
 extends Control
 
 const ITEM_SCENE: PackedScene = preload("res://scenes/ui/market_item.tscn") # Reuses an editor-authored market quote row for every sellable sticker edition.
+const PREMIUM_EDITIONS: Array[int] = [StickerVariant.EDITION_RAINBOW, StickerVariant.EDITION_SILVER, StickerVariant.EDITION_GOLD] # Defines the premium finishes that receive separate market rows after discovery.
 
 @onready var _list: VBoxContainer = %list as VBoxContainer # Owns cached market rows inside the scrollable exchange listing.
 @onready var _empty: Control = %empty_state as Control # Explains when no unstuck collected stickers are available to sell.
-@onready var _summary: Label = %summary as Label # Shows total sellable copy count across normal and gold editions.
+@onready var _summary: Label = %summary as Label # Shows total sellable copy count across every edition.
 @onready var _market_clock: Label = %market_clock as Label # Shows time remaining until the next live quote update.
 @onready var _back_button: GameButton = %back_button as GameButton # Returns directly to the pack shop world.
 
@@ -14,7 +15,7 @@ var _economy: GuaranteedSpecialStickerEconomy # Reads edition-aware ownership af
 var _catalog: StickerCatalog # Supplies all authored sticker identities and textures.
 var _market: StickerMarket # Owns persistent live quotes and market timing.
 var _available_count: Callable = Callable() # Reads only copies that are not already physically attached to the book.
-var _rows: Dictionary[String, MarketItem] = {} # Caches one row per discovered normal or special edition to avoid rebuilds on every market tick.
+var _rows: Dictionary[String, MarketItem] = {} # Caches one row per discovered exact edition to avoid rebuilds on every market tick.
 var _refresh_elapsed: float = 0.0 # Throttles market-clock and quote polling while the exchange is visible.
 
 func configure(controller: SpecialEditionGameController, economy: GuaranteedSpecialStickerEconomy, catalog: StickerCatalog, market: StickerMarket, available_count: Callable) -> void: # Binds authoritative market dependencies without signals.
@@ -35,9 +36,10 @@ func refresh() -> void: # Synchronizes sellable editions, live quotes, counts, a
 		var artwork_path: String = _catalog.get_sticker_path(index) # Reads the stable normal-edition identity.
 		if _economy.get_owned_count(artwork_path) > 0: # Shows the normal row only after at least one copy has ever been collected.
 			_ensure_row(artwork_path) # Creates the reusable normal-edition quote row when first discovered.
-		var special_key: String = StickerVariant.make_key(artwork_path, true) # Builds the distinct gold-edition inventory identity for this design.
-		if _economy.get_owned_count(special_key) > 0: # Shows gold editions separately only after the player has actually pulled one.
-			_ensure_row(special_key) # Creates a dedicated premium quote row without duplicating authored content.
+		for edition: int in PREMIUM_EDITIONS: # Checks each premium finish independently so market inventory never merges them.
+			var edition_key: String = StickerVariant.make_edition_key(artwork_path, edition) # Builds the persistent inventory identity for this finish.
+			if _economy.get_owned_count(edition_key) > 0: # Shows a premium row only after the player has actually pulled that exact edition.
+				_ensure_row(edition_key) # Creates the dedicated rainbow, silver, or gold quote row without duplicating authored content.
 	for sticker_key: String in _rows.keys(): # Refreshes existing rows after ownership, placement, or market movement changes.
 		var row: MarketItem = _rows[sticker_key] # Reads the cached reusable row for this exact edition.
 		var available: int = maxi(int(_available_count.call(sticker_key)), 0) # Calculates how many copies remain outside the physical book.
@@ -70,10 +72,10 @@ func _process(delta: float) -> void: # Polls the real-world market clock lightly
 	else: # Handles ordinary seconds between market ticks.
 		_refresh_market_clock() # Updates only the countdown label without touching sticker rows.
 
-func _ensure_row(sticker_key: String) -> void: # Creates one reusable normal or gold quote row exactly once.
+func _ensure_row(sticker_key: String) -> void: # Creates one reusable exact-edition quote row exactly once.
 	if _rows.has(sticker_key): # Rejects edition rows already cached in this HUD session.
 		return # Reuses the existing native controls and imported artwork.
-	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Resolves the actual PNG shared by both edition identities.
+	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Resolves the actual PNG shared by every edition identity.
 	var texture: Texture2D = load(artwork_path) as Texture2D # Reuses Godot's imported texture cache for the row preview.
 	if texture == null: # Handles missing or invalid authored artwork safely.
 		return # Skips the unavailable entry without breaking the rest of the exchange.

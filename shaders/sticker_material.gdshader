@@ -2,7 +2,8 @@ shader_type spatial;
 render_mode cull_disabled, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
 
 uniform sampler2D sticker_texture : source_color, filter_linear_mipmap_anisotropic, repeat_disable; // Supplies the complete printed sticker artwork and its authoritative alpha silhouette.
-uniform bool special_edition = false; // Switches only this exact physical copy into the shiny gold-metal front treatment.
+uniform bool special_edition = false; // Preserves the legacy gold switch for compatibility with older callers while explicit editions use the integer selector.
+uniform int edition = 0; // Selects normal, rainbow, silver, or gold for this exact physical copy.
 uniform vec4 adhesive_color : source_color = vec4(0.91, 0.89, 0.82, 1.0); // Supplies the paper-and-adhesive colour visible on the reverse.
 uniform vec2 grab_local = vec2(0.0); // Stores the local point where the sticker was grabbed.
 uniform vec2 drag_local = vec2(0.0); // Stores the local drag displacement driving the peel geometry.
@@ -52,7 +53,7 @@ float scratch_line(float phase, float width) { // Builds one softened scratch co
 
 vec2 rotate_surface_space(vec2 coordinate, float angle) { // Rotates one independent damage layer without changing the supplied artwork UVs.
 	float sine_value = sin(angle); // Caches the damage-layer sine for the coordinate rotation.
-	float cosine_value = cos(angle); // Caches the damage-layer cosine for the coordinate rotation.
+	float cosine_value = cos(angle); // Caches the damage-layer cosine once for efficient coordinate rotation.
 	return vec2(coordinate.x * cosine_value - coordinate.y * sine_value, coordinate.x * sine_value + coordinate.y * cosine_value); // Returns the rotated procedural-detail coordinate.
 } // Completes independent damage-space rotation.
 
@@ -149,7 +150,11 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 	float smudge_strength = smoothstep(0.57, 0.83, broad_smudge_noise) * mix(0.6, 1.0, smudge_detail_noise); // Combines broad and fine noise into soft oily-smudge zones reminiscent of fingerprints.
 	float micro_roughness = (micro_rough_noise - 0.5) * 0.10; // Converts the fine grain signal into a small signed roughness perturbation.
 	if (FRONT_FACING) { // Selects the printed front face when the artwork side is visible.
-		if (special_edition) { // Gives special copies a glossy gold-metal front with a recurring premium light sweep.
+		int active_edition = edition; // Reads the explicit current finish selected by the edition-aware game systems.
+		if (active_edition == 0 && special_edition) { // Preserves pre-migration callers that only know the original boolean special flag.
+			active_edition = 3; // Interprets legacy special=true as gold exactly as old saves and code did.
+		} // Completes legacy material compatibility.
+		if (active_edition == 3) { // Gives gold copies the established glossy premium-metal treatment.
 			float artwork_value = dot(artwork.rgb, vec3(0.299, 0.587, 0.114)); // Converts the original art into luminance so details remain readable after the gold material replacement.
 			vec3 dark_gold = vec3(0.34, 0.12, 0.015); // Keeps dark artwork regions visibly bronze-gold instead of collapsing toward black.
 			vec3 bright_gold = vec3(1.0, 0.72, 0.16); // Gives light artwork regions a bright warm polished-gold response.
@@ -168,10 +173,48 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 			gold_albedo += vec3(0.34, 0.19, 0.035) * shimmer_halo; // Warms the gold beneath the passing halo before the brightest centre arrives.
 			gold_albedo += vec3(0.58, 0.50, 0.34) * shimmer_core; // Adds a strong near-white premium highlight through the centre of the sweep.
 			ALBEDO = clamp(gold_albedo, vec3(0.0), vec3(1.0)); // Writes the animated gold base colour used by Godot's combined diffuse and metal response.
-			METALLIC = 0.68; // Keeps the surface convincingly metallic while retaining enough diffuse energy for the compatibility renderer and flat scene lighting.
-			ROUGHNESS = clamp(0.16 + micro_roughness * 0.18 + scratch_matte * 0.18 + scuff_strength * 0.035 - shimmer_strength * 0.10, 0.045, 0.34); // Temporarily polishes the material under the moving streak so the sweep catches sharper scene highlights too.
-			SPECULAR = clamp(0.88 + shimmer_strength * 0.10, 0.0, 1.0); // Reinforces the artificial glint with a brief stronger specular response under its centre and halo.
-			EMISSION = gold_albedo * 0.075 + vec3(1.0, 0.78, 0.34) * (shimmer_halo * 0.18 + shimmer_core * 0.52); // Makes the streak clearly visible in every scene while retaining the established nonblack gold floor.
+			METALLIC = 0.68; // Keeps the surface convincingly metallic while retaining enough diffuse energy for compatibility rendering.
+			ROUGHNESS = clamp(0.16 + micro_roughness * 0.18 + scratch_matte * 0.18 + scuff_strength * 0.035 - shimmer_strength * 0.10, 0.045, 0.34); // Temporarily polishes the material under the moving streak.
+			SPECULAR = clamp(0.88 + shimmer_strength * 0.10, 0.0, 1.0); // Reinforces the artificial glint under its centre and halo.
+			EMISSION = gold_albedo * 0.075 + vec3(1.0, 0.78, 0.34) * (shimmer_halo * 0.18 + shimmer_core * 0.52); // Keeps gold visible under weak scene reflections and strongly emphasizes the sweep.
+		} else if (active_edition == 2) { // Gives silver copies a bright polished cool-metal finish distinct from gold.
+			float artwork_value = dot(artwork.rgb, vec3(0.299, 0.587, 0.114)); // Preserves artwork detail through luminance rather than tinting the original colours.
+			vec3 silver_albedo = mix(vec3(0.16, 0.18, 0.21), vec3(0.96, 0.98, 1.0), smoothstep(0.03, 0.97, artwork_value)); // Maps artwork values into a readable steel-to-bright-silver range.
+			float sweep_cycle = mod(TIME + 0.8, 4.8); // Offsets silver's sweep timing from gold so adjacent variants do not animate identically.
+			float sweep_active = 1.0 - step(1.25, sweep_cycle); // Gives the reflection a brief active pass with a longer rest.
+			float sweep_progress = clamp(sweep_cycle / 1.25, 0.0, 1.0); // Normalizes the active silver pass.
+			float sweep_axis = UV.x + UV.y * 0.48; // Tilts the silver reflection diagonally across the face.
+			float sweep_distance = abs(sweep_axis - mix(-0.30, 1.78, sweep_progress)); // Measures fragment distance from the moving reflection band.
+			float sweep_core = (1.0 - smoothstep(0.0, 0.030, sweep_distance)) * sweep_active; // Creates the crisp polished-metal highlight core.
+			float sweep_halo = (1.0 - smoothstep(0.02, 0.14, sweep_distance)) * sweep_active; // Creates the broader reflected-light halo.
+			silver_albedo *= 1.0 - scratch_darkening * 0.18; // Keeps wear visible without muddying the metal.
+			silver_albedo += vec3(0.32, 0.36, 0.42) * sweep_halo + vec3(0.58) * sweep_core; // Makes the silver pass visually unmistakable.
+			ALBEDO = clamp(silver_albedo, vec3(0.0), vec3(1.0)); // Writes the cool-metal artwork replacement.
+			METALLIC = 0.76; // Gives silver a slightly stronger metal response than gold.
+			ROUGHNESS = clamp(0.14 + micro_roughness * 0.16 + scratch_matte * 0.16 - sweep_core * 0.08, 0.04, 0.31); // Keeps the silver premium and mirror-like without losing surface detail.
+			SPECULAR = 0.94; // Gives the polished silver face strong scene highlights.
+			EMISSION = silver_albedo * 0.045 + vec3(0.88, 0.95, 1.0) * (sweep_halo * 0.12 + sweep_core * 0.34); // Keeps silver readable and gives its sweep a cool artificial lift.
+		} else if (active_edition == 1) { // Gives rainbow copies an animated prismatic foil finish while preserving the underlying artwork structure.
+			float artwork_value = dot(artwork.rgb, vec3(0.299, 0.587, 0.114)); // Uses luminance to preserve the design beneath the moving foil colours.
+			float rainbow_phase = UV.x * 1.65 + UV.y * 1.15 + TIME * 0.075; // Moves a broad prismatic spectrum slowly across the sticker surface.
+			vec3 rainbow = 0.58 + 0.42 * cos(6.2831853 * (rainbow_phase + vec3(0.00, 0.33, 0.67))); // Generates a smooth full-spectrum foil palette without a lookup texture.
+			vec3 prismatic_albedo = mix(rainbow * 0.32, rainbow, smoothstep(0.04, 0.96, artwork_value)); // Uses artwork luminance to keep dark and light design regions legible inside the spectrum.
+			prismatic_albedo = mix(prismatic_albedo, artwork.rgb, 0.16); // Retains a small amount of authored colour identity beneath the foil treatment.
+			float foil_wave = 0.5 + 0.5 * sin((UV.x - UV.y * 0.62) * 42.0 + TIME * 1.35); // Adds fine moving iridescent bands that make the prismatic surface feel holographic.
+			prismatic_albedo += rainbow * foil_wave * 0.16; // Brightens alternating foil bands with the local spectrum colour.
+			float sweep_cycle = mod(TIME + 1.7, 4.1); // Gives rainbow its own recurring premium sweep cadence.
+			float sweep_active = 1.0 - step(1.2, sweep_cycle); // Restricts the strongest shine to the active sweep interval.
+			float sweep_progress = clamp(sweep_cycle / 1.2, 0.0, 1.0); // Normalizes prismatic sweep travel.
+			float sweep_distance = abs(UV.x + UV.y * 0.58 - mix(-0.32, 1.86, sweep_progress)); // Moves the bright band across the same physical face diagonally.
+			float sweep_core = (1.0 - smoothstep(0.0, 0.035, sweep_distance)) * sweep_active; // Creates the near-white central foil flash.
+			float sweep_halo = (1.0 - smoothstep(0.025, 0.17, sweep_distance)) * sweep_active; // Creates a wide rainbow-reflection halo.
+			prismatic_albedo += rainbow * sweep_halo * 0.26 + vec3(0.46) * sweep_core; // Makes the premium pass visibly travel across the holographic spectrum.
+			prismatic_albedo *= 1.0 - scratch_darkening * 0.16; // Retains subtle handling wear without dulling the holographic effect.
+			ALBEDO = clamp(prismatic_albedo, vec3(0.0), vec3(1.0)); // Writes the animated prismatic face colour.
+			METALLIC = 0.38; // Gives the holographic foil a reflective coated-metal feel without turning it into plain metal.
+			ROUGHNESS = clamp(0.18 + micro_roughness * 0.16 + scratch_matte * 0.14 - sweep_core * 0.08, 0.05, 0.34); // Keeps rainbow glossy enough for premium moving reflections.
+			SPECULAR = 0.91; // Gives the foil strong controlled highlights across all scenes.
+			EMISSION = rainbow * (0.055 + foil_wave * 0.035) + vec3(0.92) * sweep_core * 0.24; // Makes the moving spectrum visible even under weak ambient lighting.
 		} else { // Preserves the established printed-laminate response for ordinary copies.
 			float fingerprint_gloss = smudge_strength * 0.18; // Makes oily-touch areas slightly glossier and smoother than untouched laminate.
 			float scuff_matte = scuff_strength * 0.08; // Adds a faint extra roughness lift for generalized rub wear.
@@ -184,13 +227,13 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 			ROUGHNESS = clamp(mix(0.34, 0.40, peel_region) + micro_roughness + scratch_matte + scuff_matte - fingerprint_gloss, 0.05, 0.98); // Balances laminate, peel response, and realistic touch wear into one physically plausible roughness value.
 			SPECULAR = clamp(0.55 + fingerprint_gloss * 0.35 - scratch_specular_loss, 0.02, 0.95); // Lets smudges catch a little more highlight while deeper scratches break the laminate gloss.
 			EMISSION = vec3(0.0); // Keeps ordinary artwork fully dependent on scene lighting.
-		} // Completes normal-versus-special front material selection.
+		} // Completes front material selection.
 	} else { // Selects the fibrous adhesive paper wherever the source artwork defines physical sticker material.
 		NORMAL = -NORMAL; // Flips the shading normal so the reverse side receives light correctly.
 		float paper_variation = 0.965 + 0.035 * sin(UV.x * 173.0 + UV.y * 229.0); // Adds a very small procedural paper variation without a second texture.
 		float fiber_noise = fbm(detail_uv * 95.0 + vec2(2.8, -4.4)); // Adds faint fibrous grain so the reverse side is not perfectly uniform.
 		ALBEDO = adhesive_color.rgb * paper_variation * (0.97 + 0.06 * fiber_noise); // Applies the warm adhesive-paper colour across the exact source-alpha silhouette.
-		METALLIC = 0.0; // Keeps the adhesive reverse as paper even when the printed front is a special gold edition.
+		METALLIC = 0.0; // Keeps the adhesive reverse as paper regardless of the printed-front edition.
 		ROUGHNESS = clamp(0.90 + (fiber_noise - 0.5) * 0.05, 0.0, 1.0); // Makes the sticker reverse substantially rougher than the printed face while adding slight tactile variation.
 		SPECULAR = 0.18; // Keeps only a weak broad reflection on the adhesive surface.
 		EMISSION = vec3(0.0); // Keeps the paper reverse fully lit by the scene.
