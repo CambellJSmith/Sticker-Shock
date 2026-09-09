@@ -79,14 +79,14 @@ func is_running_under_proton() -> bool: # Reports whether Steam identified the c
 func open_overlay(dialog: String) -> bool: # Opens one supported Steam overlay destination while leaving gameplay state ownership to the caller.
 	if not is_available() or dialog.is_empty(): # Rejects overlay requests when Steam is unavailable or no destination was supplied.
 		return false # Reports that no overlay request was sent.
-	Steam.activateGameOverlay(dialog) # Delegates the requested standard Steam overlay destination to Steamworks.
+	Steam.activateGameOverlay(dialog.to_lower()) # Uses Steamworks' documented lowercase dialog identifiers while accepting convenient caller casing.
 	return true # Reports that the overlay activation request was submitted.
 
 func open_achievements_overlay() -> bool: # Opens the standard Steam achievements overlay for Sticker-Shock.
-	return open_overlay("Achievements") # Uses Steam's documented achievements dialog identifier through the common guarded path.
+	return open_overlay("achievements") # Uses Steam's documented achievements dialog identifier through the common guarded path.
 
 func open_friends_overlay() -> bool: # Opens the standard Steam friends overlay for the local player.
-	return open_overlay("Friends") # Uses Steam's documented friends dialog identifier through the common guarded path.
+	return open_overlay("friends") # Uses Steam's documented friends dialog identifier through the common guarded path.
 
 func set_rich_presence(key: String, value: String) -> bool: # Writes one Steam Rich Presence field for dashboard-configured status presentation.
 	if not is_available() or key.is_empty(): # Rejects Rich Presence writes without a live Steam API or a valid field name.
