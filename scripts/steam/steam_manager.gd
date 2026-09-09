@@ -1,6 +1,6 @@
 extends Node # Owns the Steamworks client lifecycle and exposes safe game-wide Steam helpers without signal wiring.
 
-const APP_ID_SETTING: StringName = &"steam/initialization/app_id" # Identifies the GodotSteam project setting used for the real Steam application identity.
+const APP_ID_SETTING: StringName = &"steam/initialization/app_data/app_id" # Identifies the GodotSteam 4.22 project setting used for the real Steam application identity.
 const REQUIRE_STEAM_SETTING: StringName = &"steam/integration/require_steam" # Identifies whether a failed Steam session should prevent the game from continuing.
 const RESTART_THROUGH_STEAM_SETTING: StringName = &"steam/integration/restart_through_steam" # Identifies whether exported builds should relaunch through the Steam client when required.
 
@@ -22,8 +22,8 @@ func _ready() -> void: # Initializes Steam before the main scene starts using an
 		get_tree().quit() # Stops this process because Steam is launching the authoritative replacement instance.
 		return # Prevents any Steam API initialization work inside the superseded process.
 	var initialize_response: Dictionary = Steam.steamInitEx(_app_id, false) # Uses explicit manual callbacks so lifecycle ownership remains inside this autoload.
-	var initialize_status: int = int(initialize_response.get("status", -1)) # Reads the detailed Steamworks initialization result without depending on a version-specific enum name.
-	if initialize_status != 0: # Treats the Steamworks success status as the only initialized state.
+	var initialize_status: int = int(initialize_response.get("status", -1)) # Reads the detailed Steamworks initialization result without depending on dictionary Variant typing.
+	if initialize_status != int(Steam.STEAM_API_INIT_RESULT_OK): # Accepts only the current GodotSteam Steamworks success enum value.
 		_handle_initialization_failure(str(initialize_response.get("verbal", "unknown Steam initialization error"))) # Reports the exact Steamworks reason and applies the configured fallback policy.
 		return # Leaves callback processing disabled when Steam is unavailable.
 	_initialized = true # Marks every later Steam helper as safe to use.
