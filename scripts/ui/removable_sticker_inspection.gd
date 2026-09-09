@@ -45,6 +45,7 @@ func set_sticker_details(definition: StickerDefinition, edition_name: String, ma
 
 func set_return_to_collection_action(action: Callable) -> void: # Configures whether the currently inspected sticker can be removed from the book.
 	_return_to_collection_action = action # Retains the exact placement callback for this modal session.
+	_return_to_collection_button.text = "return to collection" # Restores the normal action label after any earlier failed removal attempt.
 	_return_to_collection_button.visible = action.is_valid() # Shows removal only when inspection came from a removable physical book placement.
 	_return_to_collection_button.disabled = not action.is_valid() # Prevents stale focus activation when no placement context exists.
 
@@ -76,6 +77,9 @@ func _refresh_market_value() -> void: # Updates the current exact-edition sell v
 func _return_to_collection() -> void: # Removes the exact inspected placement and returns its owned copy to collection availability.
 	if not _return_to_collection_action.is_valid(): # Rejects stale or non-book inspection sessions.
 		return # Leaves the inspection unchanged when no authoritative removal callback exists.
-	var action: Callable = _return_to_collection_action # Copies the callback before closing clears modal state.
-	close_and_restore_focus() # Releases inspection input before the physical book is rebuilt.
-	action.call() # Lets the authoritative controller remove the exact placement, refresh collection state, and rebuild the visible spread.
+	var action: Callable = _return_to_collection_action # Copies the callback so its result can be validated before modal state is cleared.
+	var result: Variant = action.call() # Lets the authoritative controller commit the exact placement removal and report success synchronously.
+	if not bool(result): # Detects a stale placement or persistence rejection instead of pretending the removal completed.
+		_return_to_collection_button.text = "could not return · try again" # Keeps the modal open and gives immediate visible failure feedback.
+		return # Preserves the current inspection context so the player can retry or close deliberately.
+	close_and_restore_focus() # Releases inspection only after the authoritative book state confirms the sticker was removed.
