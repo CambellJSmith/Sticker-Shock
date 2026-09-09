@@ -8,7 +8,7 @@ tools/sticker_creator/run_linux.sh
 
 On Windows, run `tools\sticker_creator\run_windows.bat`.
 
-The launcher automatically installs the Python dependencies required by the sticker creator and its local vision model. The tool lets you manage packs and artists, assigns sticker IDs automatically, accepts PNG artwork, and creates one Godot `StickerDefinition` resource per sticker.
+The launchers use your existing Python installation and do not create a virtual environment, upgrade `pip`, or install packages automatically. Linux uses `python3` by default and Windows uses `python`; set `PYTHON_BIN` before launching if you want to use a different existing interpreter. The launcher checks for Pillow, NumPy, and SciPy and exits with an install command if any are missing. The tool lets you manage packs and artists, assigns sticker IDs automatically, accepts PNG artwork, and creates one Godot `StickerDefinition` resource per sticker.
 
 On first run, the tool automatically downloads and caches `HuggingFaceTB/SmolVLM-256M-Instruct`. Setup runs in the background and the normal sticker-authoring controls remain usable while it completes. After the model has been cached, flavour-text generation runs locally from the selected PNG and does not require an online inference service.
 
@@ -46,7 +46,7 @@ Width is a minimum growth distance. Rough points or strong smoothing can make th
 
 The border is fully opaque except for its antialiased outer edge. Bordered exports reserve 32 palette entries for the exact chosen colour and an alpha ramp, leaving 224 entries for the artwork. This prevents palette conversion from tinting the backing or introducing dark edge halos. Fully transparent PNGs are rejected. Images whose expanded working canvas exceeds 25 million pixels must be reduced before bordering.
 
-Preview work runs on a background worker with debounced updates and cached cut geometry for colour-only changes. The preview uses the same geometry and palette conversion as saving. The launchers automatically install Pillow, NumPy, and SciPy into the tool's local Python environment, including environments created by an earlier tool version.
+Preview work runs on a background worker with debounced updates and cached cut geometry for colour-only changes. The preview uses the same geometry and palette conversion as saving. Pillow, NumPy, and SciPy must already be installed in the Python interpreter used to launch the tool; the launchers only verify those imports and never create or modify a Python environment.
 
 ### individual imports, batches, and edits
 
