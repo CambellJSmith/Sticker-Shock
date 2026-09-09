@@ -8,7 +8,7 @@ var _market: StickerMarket = BalancedStickerMarket.new() # Owns the balanced liv
 var _market_world: MarketWorld # Stores the long-lived physical collector exchange scene for the complete application session.
 
 func _init() -> void: # Replaces only the economy and sticker silhouette solver with edition-aware implementations before normal game initialization begins.
-	_economy = GuaranteedSpecialStickerEconomy.new() # Preserves the existing economy interface while adding three pull milestones and exact-copy market sales.
+	_economy = BankedFreePackEconomy.new() # Preserves live pack pricing and premium milestones while allowing up to five free packs to roll over.
 	_auto_packer = SpecialEditionAutoPacker.new() # Preserves the complete existing controller flow while ensuring edition copy keys never reach ResourceLoader during packing.
 
 func _ready() -> void: # Composes the established game first, then adds persistent live market state and its physically separate exchange world.
