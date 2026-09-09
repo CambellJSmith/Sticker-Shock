@@ -99,6 +99,7 @@ unique_name_in_owner = true
 [node name="scroll" type="ScrollContainer" parent="area/content"]
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+follow_focus = true
 unique_name_in_owner = true
 
 [node name="list" type="VBoxContainer" parent="area/content/scroll"]
