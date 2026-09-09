@@ -19,6 +19,7 @@ func configure(controller: GameController, economy: StickerEconomy, catalog: Sti
 	_continue.bind_action(_continue_game) # Routes players to an interrupted placement, their book, or the shop as appropriate.
 	_free.bind_action(navigate.bind("shop")) # Opens the shop without making an implicit purchase.
 	(%shop_button as GameButton).bind_action(navigate.bind("shop")) # Binds the explicit shop route.
+	(%market_button as GameButton).bind_action(navigate.bind("market")) # Opens the collector exchange through the same market-aware navigation router used by the in-game rail.
 	(%collection_button as GameButton).bind_action(navigate.bind("collection")) # Binds collection browsing and placement selection.
 	(%settings_button as GameButton).bind_action(navigate.bind("settings")) # Binds settings with return history.
 	(%quit_button as GameButton).bind_action(controller.request_quit) # Uses the existing interrupted-placement-safe shutdown.
