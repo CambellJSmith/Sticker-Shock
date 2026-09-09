@@ -1,6 +1,9 @@
 class_name RemovableStickerInspection
 extends StickerInspection
 
+const CONTROLLER_ROTATION_SPEED: float = 2.35 # Converts full right-stick deflection into responsive inspection pitch/yaw radians per second.
+const CONTROLLER_ROLL_SPEED: float = 2.10 # Converts shoulder-button hold into deliberate camera-facing roll radians per second.
+
 @onready var _return_to_collection_button: Button = $bottom_bar/return_to_collection as Button # References the explicit action that removes the inspected physical placement from the book.
 @onready var _edition_badge: Label = $top_bar/content/edition_badge as Label # Shows the exact normal or premium finish beside the authored sticker name.
 @onready var _market_value: Label = $details_panel/margin/scroll/details/market_value as Label # Shows the current collector-exchange quote for this exact edition.
@@ -10,14 +13,38 @@ extends StickerInspection
 @onready var _pack_label: Label = $details_panel/margin/scroll/details/pack_label as Label # Shows the creator-authored pack assignment.
 @onready var _artist_label: Label = $details_panel/margin/scroll/details/artist_label as Label # Shows the creator-authored artist assignment.
 @onready var _description_label: Label = $details_panel/margin/scroll/details/description as Label # Shows the creator-authored flavour description with wrapping.
+@onready var _control_hint: Label = $bottom_bar/hint as Label # Explains the active mouse/keyboard or controller inspection mapping without adding another overlay.
 
 var _return_to_collection_action: Callable # Stores the exact placement-removal callback supplied by the book controller.
 var _market_value_provider: Callable # Stores a lightweight live-value lookup for the exact inspected edition.
 var _market_refresh_elapsed: float = 0.0 # Throttles inspection quote refreshes independently of rendering.
+var _last_controller_hint: bool = false # Avoids rewriting the inspection help label every frame while the same input family remains active.
 
 func configure_actions() -> void: # Binds the existing inspection controls plus the collection-return action without signals.
 	super.configure_actions() # Preserves close, zoom, and reset behavior from the established inspection surface.
 	(_return_to_collection_button as GameButton).bind_action(_return_to_collection) # Routes the new action through the same native button abstraction as the rest of the UI.
+
+func open_inspection(sticker_texture: Texture2D, display_name: String, sticker_size: Vector2) -> void: # Opens the established physical inspector and immediately presents the correct active-device controls.
+	super.open_inspection(sticker_texture, display_name, sticker_size) # Preserves mesh setup, canonical orientation, camera fit, zoom reset, and deterministic close-button focus.
+	_market_refresh_elapsed = 0.0 # Starts live-value and control-hint polling from a clean interval for this modal session.
+	_last_controller_hint = not _is_controller_mode() # Forces the first hint refresh regardless of the previous inspection's input family.
+	_refresh_control_hint() # Shows either complete gamepad inspection controls or the established pointer/keyboard gestures.
+
+func handle_input(event: InputEvent) -> bool: # Extends established mouse/keyboard inspection gestures with direct gamepad zoom and reset actions.
+	if super.handle_input(event): # Gives existing R/Q/E, mouse wheel, arcball, and right-drag gestures first ownership.
+		return true # Reports the inherited interaction as fully handled without duplicating its transform.
+	if not visible: # Rejects controller shortcuts while the inspection modal is closed.
+		return false # Leaves the active gameplay destination in control.
+	if event.is_action_pressed(&"Button_X"): # Maps the physical-action face button to a convenient inspection zoom-out shortcut while the book is blocked beneath the modal.
+		_change_zoom(false) # Uses the same clamped multiplicative zoom path as the toolbar and mouse wheel.
+		return true # Prevents the same X press from reaching any underlying physical sticker interaction.
+	if event.is_action_pressed(&"Button_Y"): # Maps the upper face button to zoom in for symmetric controller inspection.
+		_change_zoom(true) # Uses the same established clamped camera path as every other zoom source.
+		return true # Consumes the gamepad zoom-in action inside the modal.
+	if event.is_action_pressed(&"Button_RightStick"): # Gives the right-stick click a quick canonical-view reset without moving UI focus.
+		_reset_transform() # Restores orientation and zoom through the existing inspection reset implementation.
+		return true # Consumes the reset action inside inspection.
+	return false # Leaves A/B/Start, left-stick UI focus, shoulders-as-held-state, and unrelated input to their normal owners.
 
 func set_sticker_details(definition: StickerDefinition, edition_name: String, market_value_provider: Callable) -> void: # Populates every creator-authored property plus exact edition and live exchange value.
 	_market_value_provider = market_value_provider # Retains the exact edition-aware quote lookup while this inspection remains open.
@@ -57,12 +84,22 @@ func close_inspection() -> void: # Clears removal and live-market context whenev
 		_return_to_collection_button.visible = false # Hides the book-only action until another physical placement supplies context.
 	super.close_inspection() # Preserves the established rendering shutdown and modal visibility behavior.
 
-func _process(delta: float) -> void: # Keeps the displayed exchange value current while the player leaves inspection open.
-	if not visible or not _market_value_provider.is_valid(): # Avoids all quote work while inspection is closed or no market context exists.
+func _process(delta: float) -> void: # Drives continuous controller rotation/roll and keeps the displayed exchange value current while inspection is open.
+	if not visible: # Avoids analog input, hint updates, and quote work while inspection is closed.
 		return # Leaves hidden inspection effectively idle.
+	_refresh_control_hint() # Switches the compact help string only when meaningful input changes the active device family.
+	if _is_controller_mode(): # Applies continuous analog inspection transforms only while the gamepad is the most recently used device.
+		var look: Vector2 = Input.get_vector(&"StickRight_West", &"StickRight_East", &"StickRight_North", &"StickRight_South") # Reads camera-relative two-axis rotation independently from left-stick UI focus.
+		if look.length_squared() > 0.0001: # Avoids quaternion work while the right stick rests inside its configured deadzone.
+			_apply_controller_rotation(look, delta) # Converts screen-space stick direction into stable world-space pitch and yaw on the inspection pivot.
+		var roll_input: float = Input.get_action_strength(&"Button_RightShoulder") - Input.get_action_strength(&"Button_LeftShoulder") # Treats shoulders as symmetric held roll controls.
+		if absf(roll_input) > 0.001: # Avoids roll quaternion work while neither shoulder is held.
+			_apply_roll(roll_input * CONTROLLER_ROLL_SPEED * delta) # Reuses the established camera-facing roll axis and normalized orientation composition.
+	if not _market_value_provider.is_valid(): # Skips quote polling for inspection contexts that do not have an authoritative market value provider.
+		return # Leaves controller transforms fully active even when no market quote exists.
 	_market_refresh_elapsed += delta # Accumulates elapsed visible time between lightweight quote checks.
 	if _market_refresh_elapsed < 1.0: # Limits market advancement/value formatting to one check per second.
-		return # Keeps frame-by-frame inspection rendering free of economy polling.
+		return # Keeps frame-by-frame inspection rendering and analog controls free of economy polling.
 	_market_refresh_elapsed = 0.0 # Starts the next one-second quote-refresh interval.
 	_refresh_market_value() # Reads the same live market model used by the collector exchange.
 
@@ -83,3 +120,25 @@ func _return_to_collection() -> void: # Removes the exact inspected placement an
 		_return_to_collection_button.text = "could not return · try again" # Keeps the modal open and gives immediate visible failure feedback.
 		return # Preserves the current inspection context so the player can retry or close deliberately.
 	close_and_restore_focus() # Releases inspection only after the authoritative book state confirms the sticker was removed.
+
+func _apply_controller_rotation(look: Vector2, delta: float) -> void: # Applies right-stick pitch/yaw in camera screen axes without introducing Euler-angle locking.
+	var camera_right: Vector3 = _camera.global_transform.basis.x.normalized() # Resolves the inspection camera's world-space screen-right axis.
+	var camera_up: Vector3 = _camera.global_transform.basis.y.normalized() # Resolves the inspection camera's world-space screen-up axis.
+	var yaw_rotation: Quaternion = Quaternion(camera_up, -look.x * CONTROLLER_ROTATION_SPEED * delta) # Turns horizontal stick motion around the current screen-up axis.
+	var pitch_rotation: Quaternion = Quaternion(camera_right, -look.y * CONTROLLER_ROTATION_SPEED * delta) # Turns vertical stick motion around the current screen-right axis.
+	_orientation = (yaw_rotation * pitch_rotation * _orientation).normalized() # Composes both camera-relative rotations onto the existing unrestricted quaternion orientation.
+	_apply_orientation() # Writes the new inspection-only transform without touching persistent book placement.
+
+func _is_controller_mode() -> bool: # Reads the persistent application's shared most-recent-input mode for device-specific inspection behavior.
+	var game_ui: MarketGameUI = get_parent() as MarketGameUI # Narrows the modal owner to the controller-aware concrete UI used by the actual main scene.
+	return game_ui != null and game_ui.is_controller_input_active() # Uses one shared device-mode source so hints and analog transforms change together.
+
+func _refresh_control_hint() -> void: # Presents a complete mapping for the active inspection input family without adding another UI surface.
+	var controller_mode: bool = _is_controller_mode() # Reads the current meaningful input family exactly once for this refresh.
+	if controller_mode == _last_controller_hint: # Avoids rewriting the same label every frame while input ownership is unchanged.
+		return # Leaves the current concise help string stable.
+	_last_controller_hint = controller_mode # Records the newly displayed mapping before mutating the label.
+	if controller_mode: # Shows every non-menu gamepad transform available in the inspection modal.
+		_control_hint.text = "right stick rotate · LB/RB roll · X/Y zoom · R3 reset · B close" # Makes unrestricted inspection fully discoverable without mouse or keyboard.
+	else: # Preserves the established desktop gesture mapping when mouse/keyboard is active.
+		_control_hint.text = "drag to rotate · right drag to roll · wheel to zoom · r to reset" # Retains concise original pointer/keyboard guidance.
