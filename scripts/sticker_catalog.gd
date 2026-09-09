@@ -35,33 +35,35 @@ func get_sticker_path(index: int) -> String: # Returns one renderer-compatible s
 		return "" # Returns an empty path to represent an unavailable catalogue entry.
 	return _sticker_paths[index] # Returns the artwork path expected by the existing physical sticker renderer and persistence systems.
 
-func get_definition(sticker_path: String) -> StickerDefinition: # Returns the complete metadata object associated with one renderer-compatible artwork path.
-	if not _definitions_by_art_path.has(sticker_path): # Rejects paths that are not represented by a valid generated sticker resource.
+func get_definition(sticker_key: String) -> StickerDefinition: # Returns the complete metadata object for either a normal artwork path or a special-edition copy identity.
+	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Normalizes per-copy edition identity before querying authored metadata.
+	if not _definitions_by_art_path.has(artwork_path): # Rejects paths that are not represented by a valid generated sticker resource.
 		return null # Returns no metadata object for unknown artwork.
-	return _definitions_by_art_path[sticker_path] # Returns the immutable catalogue-owned definition resource reference.
+	return _definitions_by_art_path[artwork_path] # Returns the immutable catalogue-owned definition resource reference shared by both editions.
 
-func get_sticker_id(sticker_path: String) -> int: # Returns the numerical ID stored in one sticker definition.
-	var definition: StickerDefinition = get_definition(sticker_path) # Resolves the metadata resource through the existing artwork identity.
+func get_sticker_id(sticker_key: String) -> int: # Returns the numerical ID stored in one sticker definition regardless of edition.
+	var definition: StickerDefinition = get_definition(sticker_key) # Resolves the metadata resource after normalizing any special identity.
 	return definition.id if definition != null else 0 # Returns the stored ID or a safe invalid identifier for unknown artwork.
 
-func get_display_name(sticker_path: String) -> String: # Returns the authored player-facing sticker name while retaining a filename fallback for defensive compatibility.
-	var definition: StickerDefinition = get_definition(sticker_path) # Resolves the metadata resource through the existing artwork identity.
-	return definition.sticker_name if definition != null else sticker_path.get_file().get_basename() # Uses authored metadata whenever a valid generated sticker exists.
+func get_display_name(sticker_key: String) -> String: # Returns the authored player-facing sticker name while retaining a normalized filename fallback.
+	var definition: StickerDefinition = get_definition(sticker_key) # Resolves the metadata resource after normalizing any special identity.
+	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Resolves the real authored path for the defensive filename fallback.
+	return definition.sticker_name if definition != null else artwork_path.get_file().get_basename() # Uses authored metadata whenever a valid generated sticker exists.
 
-func get_description(sticker_path: String) -> String: # Returns the authored descriptive text for one sticker.
-	var definition: StickerDefinition = get_definition(sticker_path) # Resolves the complete sticker data object.
+func get_description(sticker_key: String) -> String: # Returns the authored descriptive text shared by normal and special copies of one sticker.
+	var definition: StickerDefinition = get_definition(sticker_key) # Resolves the complete sticker data object after normalizing edition identity.
 	return definition.description if definition != null else "" # Returns empty text when no definition is available.
 
-func get_pack_name(sticker_path: String) -> String: # Returns the controlled pack assignment for one sticker.
-	var definition: StickerDefinition = get_definition(sticker_path) # Resolves the complete sticker data object.
+func get_pack_name(sticker_key: String) -> String: # Returns the controlled pack assignment shared by both editions of one sticker.
+	var definition: StickerDefinition = get_definition(sticker_key) # Resolves the complete sticker data object after normalizing edition identity.
 	return definition.pack if definition != null else "" # Returns no pack for unknown artwork.
 
-func get_artist_name(sticker_path: String) -> String: # Returns the controlled artist assignment for one sticker.
-	var definition: StickerDefinition = get_definition(sticker_path) # Resolves the complete sticker data object.
+func get_artist_name(sticker_key: String) -> String: # Returns the controlled artist assignment shared by both editions of one sticker.
+	var definition: StickerDefinition = get_definition(sticker_key) # Resolves the complete sticker data object after normalizing edition identity.
 	return definition.artist if definition != null else "" # Returns no artist for unknown artwork.
 
-func get_rarity_name(sticker_path: String) -> String: # Returns the controlled rarity assignment for one sticker.
-	var definition: StickerDefinition = get_definition(sticker_path) # Resolves the complete sticker data object.
+func get_rarity_name(sticker_key: String) -> String: # Returns the authored rarity independently from whether one pulled copy is special.
+	var definition: StickerDefinition = get_definition(sticker_key) # Resolves the complete sticker data object after normalizing edition identity.
 	return definition.rarity if definition != null else "" # Returns no rarity for unknown artwork.
 
 func get_pack_names() -> PackedStringArray: # Returns every authored pack that contains at least one normal random-pull sticker.
@@ -92,11 +94,12 @@ func get_unique_sticker_path_by_code(code: String) -> String: # Resolves an exac
 			return sticker_path # Returns the renderer-compatible identity for the matching Unique sticker.
 	return "" # Returns no match when the code does not exactly equal any Unique sticker Name.
 
-func get_default_size(sticker_path: String) -> Vector2: # Returns an aspect-preserving physical artwork size for rendering, manual placement, and automatic packing.
-	if _size_cache.has(sticker_path): # Reuses the previously calculated dimensions when the same design appears more than once.
-		var cached_size: Vector2 = _size_cache[sticker_path] # Narrows the cached Variant to the physical Vector2 size stored for this artwork.
+func get_default_size(sticker_key: String) -> Vector2: # Returns an aspect-preserving physical artwork size for normal or special rendering, placement, and packing.
+	var artwork_path: String = StickerVariant.get_art_path(sticker_key) # Normalizes special copy identity before cache and resource access.
+	if _size_cache.has(artwork_path): # Reuses the previously calculated dimensions when either edition of the same design appears more than once.
+		var cached_size: Vector2 = _size_cache[artwork_path] # Narrows the cached Variant to the physical Vector2 size stored for this artwork.
 		return cached_size # Returns the cached physical artwork dimensions without another texture query.
-	var texture_resource: Resource = ResourceLoader.load(sticker_path, "Texture2D") # Loads the imported PNG through Godot's resource cache.
+	var texture_resource: Resource = ResourceLoader.load(artwork_path, "Texture2D") # Loads the imported PNG through Godot's resource cache using only the real resource path.
 	if texture_resource is not Texture2D: # Detects missing or incompatible catalogue artwork defensively.
 		return Vector2(DEFAULT_LONG_EDGE, DEFAULT_LONG_EDGE) # Falls back to a square physical sticker so callers always receive usable dimensions.
 	var sticker_texture: Texture2D = texture_resource as Texture2D # Narrows the validated resource for typed dimension access.
@@ -108,7 +111,7 @@ func get_default_size(sticker_path: String) -> Vector2: # Returns an aspect-pres
 		sticker_size = Vector2(DEFAULT_LONG_EDGE, DEFAULT_LONG_EDGE / aspect_ratio) # Preserves the imported artwork aspect ratio without stretching.
 	else: # Handles portrait artwork with a fixed physical height.
 		sticker_size = Vector2(DEFAULT_LONG_EDGE * aspect_ratio, DEFAULT_LONG_EDGE) # Preserves the imported artwork aspect ratio without stretching.
-	_size_cache[sticker_path] = sticker_size # Caches the calculated physical size for future duplicate pack draws and placement checks.
+	_size_cache[artwork_path] = sticker_size # Shares calculated physical size between normal and special editions of the same artwork.
 	return sticker_size # Returns the final aspect-preserving artwork dimensions used directly as the sticker sheet size.
 
 func create_random_pack(pack_size: int, random_number_generator: RandomNumberGenerator, pack_name: String = "") -> PackedStringArray: # Creates a rarity-weighted pack while excluding Unique stickers from normal random pulls.
