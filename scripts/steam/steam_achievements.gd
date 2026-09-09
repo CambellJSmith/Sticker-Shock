@@ -3,6 +3,7 @@ extends Node # Reconciles Sticker-Shock progression and event history with Steam
 const EVENT_SAVE_PATH: String = "user://sticker_achievement_events.json" # Persists non-reconstructible first-time gameplay events so offline sessions can reconcile them with Steam later.
 const EVENT_SAVE_VERSION: int = 1 # Identifies the compact event-history document format used by the generic achievement manager.
 const RETRY_INTERVAL_SECONDS: float = 0.5 # Limits failed Steam achievement retries while the asynchronous user-stats cache becomes ready.
+const BOOK_POLL_INTERVAL_SECONDS: float = 0.5 # Checks only the constant-time physical placement count so book milestones update without coupling the persistence model back to Steam.
 const MAX_RETRY_ATTEMPTS: int = 10 # Bounds native retry work when Steamworks configuration is missing or stats remain unavailable.
 
 var _economy: StickerEconomy # Retains authoritative owned-copy progression after the game controller completes model initialization.
@@ -13,10 +14,12 @@ var _pending_attempt_counts: Dictionary[StringName, int] = {} # Stores Steam ach
 var _completed_session: Dictionary[StringName, bool] = {} # Prevents already confirmed Steam achievements from being queried or stored repeatedly during this process lifetime.
 var _exhausted_session: Dictionary[StringName, bool] = {} # Prevents a bad dashboard definition from restarting another bounded retry loop every time progression changes this session.
 var _retry_elapsed_seconds: float = 0.0 # Accumulates process time so pending native calls run only at the controlled retry cadence.
+var _book_poll_elapsed_seconds: float = 0.0 # Accumulates time between constant-time placement-count checks after achievement models are configured.
+var _last_book_placement_count: int = -1 # Caches the last observed placement count so expensive catalogue evaluation runs only when physical book contents actually change.
 
 func _ready() -> void: # Loads durable event history and requests Steam stats after SteamManager has initialized the base-app session.
 	process_mode = Node.PROCESS_MODE_ALWAYS # Keeps pending Steam synchronization alive while gameplay is paused or switching physical worlds.
-	set_process(false) # Avoids per-frame work until at least one earned achievement needs a retry.
+	set_process(false) # Avoids per-frame work until startup configuration or a pre-configuration achievement retry requires it.
 	_load_event_state() # Restores event achievements earned during previous online or offline sessions before gameplay models finish startup.
 	if SteamManager.is_available(): # Requests the local user's stats only when the base launcher Steam session initialized successfully.
 		_debug_print("requesting user stats for steam_id=%d" % SteamManager.get_steam_id()) # Confirms the asynchronous stats request during editor/debug testing.
@@ -28,23 +31,29 @@ func configure(economy: StickerEconomy, catalog: StickerCatalog, book_state: Sti
 	_economy = economy # Retains duplicate-aware ownership state for collection and edition achievements.
 	_catalog = catalog # Retains the live catalogue so all content-count milestones scale with future sticker additions.
 	_book_state = book_state # Retains physical placement state for dynamically scaled book milestones.
+	_last_book_placement_count = _book_state.get_placement_count() if _book_state != null else -1 # Seeds the cheap change detector from the restored persistent book before the initial full reconciliation.
+	_book_poll_elapsed_seconds = 0.0 # Starts a fresh polling interval after authoritative model wiring completes.
 	_queue_saved_events() # Reconciles durable first-time events that may have been earned while Steam was unavailable.
 	sync_progress() # Reconciles every achievement whose condition can be reconstructed from current persistent game state.
+	if SteamManager.is_available(): # Keeps only Steam-enabled configured sessions polling the cheap book-placement count.
+		set_process(true) # Allows physical placement changes and any pending retries to synchronize without adding gameplay signals.
+
+func sync_first_sticker(total_owned_count: int) -> void: # Preserves the existing economy startup/acquisition hook while the broader achievement manager owns all new rules.
+	if total_owned_count <= 0: # Requires at least one actual owned physical copy before the original achievement can be earned.
+		return # Leaves Steam untouched for a genuinely empty collection.
+	_queue_achievement(StickerAchievementRules.FIRST_STICKER) # Reuses the generic queue so existing code remains compatible without retaining first-sticker-specific retry state.
 
 func sync_progress() -> void: # Re-evaluates all state-derived achievements against the current catalogue and persistent progression.
 	if _economy == null or _catalog == null or _book_state == null: # Rejects calls made before the game controller has supplied all authoritative models.
 		return # Leaves achievement state untouched until startup configuration is complete.
+	_last_book_placement_count = _book_state.get_placement_count() # Synchronizes the cheap placement-change cache whenever a full rule evaluation is already being performed.
 	var earned_api_names: Array[StringName] = StickerAchievementRules.evaluate_progress(_economy, _catalog, _book_state) # Calculates satisfied rules without crossing the Steam extension boundary.
 	_debug_print("sync state-derived achievements satisfied=%d catalogue=%d" % [earned_api_names.size(), _catalog.get_sticker_count()]) # Exposes compact reconciliation context in debug builds.
 	for api_name: StringName in earned_api_names: # Queues each currently satisfied condition idempotently.
 		_queue_achievement(api_name) # Deduplicates session-complete, pending, and exhausted achievements before any native call.
 
-func report_pack_opened(was_free_pack: bool) -> void: # Records the first successful pack event plus the appropriate paid-or-free route for durable offline-safe reconciliation.
-	_record_event(StickerAchievementRules.FIRST_PACK) # Records opening any complete pack regardless of payment route.
-	if was_free_pack: # Distinguishes the cooldown/banked free-pack route from a paid transaction.
-		_record_event(StickerAchievementRules.FIRST_FREE_PACK) # Records the first successfully claimed free sticker pack.
-	else: # Handles a normal currency-paid pack purchase.
-		_record_event(StickerAchievementRules.FIRST_PAID_PACK) # Records the first successfully purchased sticker pack.
+func report_pack_opened() -> void: # Records one successfully opened complete pack so the milestone survives later sales or offline Steam availability.
+	_record_event(StickerAchievementRules.FIRST_PACK) # Persists and queues only the provable generic pack-opening event without guessing whether its route was paid or free.
 
 func report_market_sale() -> void: # Records the first successful collector-exchange sale as an event that current inventory cannot reconstruct later.
 	_record_event(StickerAchievementRules.FIRST_MARKET_SALE) # Persists and queues the market-debut achievement only after gameplay confirms an atomic sale succeeded.
@@ -70,15 +79,27 @@ func _queue_achievement(api_name: StringName) -> void: # Adds one earned achieve
 	if not SteamManager.is_available(): # Keeps earned state local when Steam is intentionally unavailable for this process.
 		return # Leaves event conditions durable and state-derived conditions reconstructible on a future Steam-enabled launch.
 	if _attempt_achievement(api_name): # Tries immediately so normal gameplay receives an achievement toast without an avoidable half-second delay.
-		return # Leaves processing disabled when the first native transaction succeeds.
+		return # Leaves no pending retry for this API name when the first native transaction succeeds.
 	if _pending_attempt_counts.has(api_name): # Enables retries only when the immediate attempt failed without exhausting its bounded attempt budget.
 		_retry_elapsed_seconds = 0.0 # Starts a clean retry interval after the immediate native call.
-		set_process(true) # Activates the generic pending queue until all earned achievements succeed or exhaust this session.
+		set_process(true) # Activates processing for the generic pending queue and, after configuration, book placement change detection.
 
-func _process(delta: float) -> void: # Retries every pending earned achievement at a controlled cadence while Steam's user-stats cache becomes ready.
-	if _pending_attempt_counts.is_empty() or not SteamManager.is_available(): # Stops process work when nothing remains or the current session has no live Steam API.
-		set_process(false) # Removes the autoload from future process frames until another earned achievement is queued.
-		return # Leaves durable/reconstructible conditions available for a later Steam-enabled launch when necessary.
+func _process(delta: float) -> void: # Polls cheap book-state changes and retries pending earned achievements without gameplay signal wiring.
+	if not SteamManager.is_available(): # Stops all Steam-oriented process work when this process has no live API session.
+		set_process(false) # Leaves reconstructible and durable local conditions available for a future Steam-enabled launch.
+		return # Avoids native or progression work in standalone sessions.
+	if _book_state != null: # Enables constant-time physical-book change detection only after authoritative model configuration.
+		_book_poll_elapsed_seconds += delta # Accumulates pause-independent time toward the next placement-count comparison.
+		if _book_poll_elapsed_seconds >= BOOK_POLL_INTERVAL_SECONDS: # Throttles even the cheap count check to avoid unnecessary per-frame persistence reads.
+			_book_poll_elapsed_seconds = 0.0 # Restarts the book change interval before reading current state.
+			var current_placement_count: int = _book_state.get_placement_count() # Reads the constant-time array size without allocating a placement snapshot.
+			if current_placement_count != _last_book_placement_count: # Runs the full catalogue rule scan only when a placement or removal actually changed physical book contents.
+				_last_book_placement_count = current_placement_count # Updates the change detector before synchronization can perform its own placement snapshot.
+				sync_progress() # Re-evaluates dynamic book milestones and any simultaneously changed collection conditions.
+	if _pending_attempt_counts.is_empty(): # Skips retry timing entirely when every currently earned Steam achievement is already synchronized.
+		if _book_state == null: # Detects the pre-configuration case where processing was enabled only for a transient retry that has now finished.
+			set_process(false) # Returns the autoload to idle until configured or another achievement is queued.
+		return # Keeps configured sessions alive only for cheap book placement polling.
 	_retry_elapsed_seconds += delta # Accumulates pause-independent process time toward the next native retry pass.
 	if _retry_elapsed_seconds < RETRY_INTERVAL_SECONDS: # Waits for the configured interval instead of crossing the extension boundary every frame.
 		return # Defers the queue without mutating attempt counters.
@@ -88,8 +109,6 @@ func _process(delta: float) -> void: # Retries every pending earned achievement 
 		queued_api_names.append(api_name) # Preserves a stable iteration list while the pending dictionary can change below.
 	for api_name: StringName in queued_api_names: # Attempts each achievement independently so one bad Steamworks definition cannot block unrelated achievements.
 		_attempt_achievement(api_name) # Updates per-achievement attempt state and removes successful or exhausted entries.
-	if _pending_attempt_counts.is_empty(): # Detects completion of the entire retry batch after all mutations are finished.
-		set_process(false) # Stops per-frame work until another newly earned achievement appears.
 
 func _attempt_achievement(api_name: StringName) -> bool: # Performs one guarded Steam unlock/store transaction for an already-earned achievement.
 	if not _pending_attempt_counts.has(api_name) or not SteamManager.is_available(): # Rejects stale attempts and calls without a live Steam API session.
