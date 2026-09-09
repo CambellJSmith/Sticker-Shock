@@ -21,6 +21,25 @@ func begin_manual_placement(sticker_key: String, pending_index: int) -> bool: # 
 	_update_manual_preview(get_viewport().get_mouse_position()) # Positions the newly created sticker immediately beneath the current pointer when possible.
 	return true # Reports that the selected collection copy successfully entered manual book placement mode.
 
+func _process(delta: float) -> void: # Advances the short post-placement delay before returning to the collection that initiated placement.
+	if _return_to_shop_remaining < 0.0: # Skips all timer work when no manual placement has just been committed.
+		return # Leaves ordinary book and peel processing entirely to their own components.
+	_return_to_shop_remaining -= delta # Advances the existing post-slam visibility delay without adding another timer object.
+	if _return_to_shop_remaining <= 0.0: # Detects when the newly placed sticker has had enough time to visibly complete its landing.
+		_return_to_shop_remaining = -1.0 # Clears the one-shot transition timer before routing to another destination.
+		_controller.show_collection() # Returns to the collection so the player can choose another available normal or special copy deliberately.
+
+func _commit_manual_placement() -> void: # Converts the currently previewed collection sticker into authoritative persistent book state.
+	if _manual_preview == null or not _manual_target_valid: # Rejects clicks while no collection copy is carried or its complete sheet does not fit on a page.
+		return # Leaves the reserved copy untouched until the player chooses a valid physical target.
+	var committed: bool = _controller.commit_manual_placement(_manual_pending_index, _manual_sticker_path, _manual_sticker_size, _manual_target_page, _manual_world_xz) # Lets the root coordinator validate exact edition identity and persist the physical placement atomically.
+	if not committed: # Handles a stale pending index or any unexpected authoritative-state mismatch safely.
+		_hud.set_status("could not place this sticker. try again.") # Reports that persistence rejected the physical commit.
+		return # Keeps the preview active so the player does not silently lose a collected copy.
+	_clear_manual_preview() # Removes the temporary floating sheet and projected guide because a real physical Sticker now owns the committed placement.
+	_hud.set_status("stuck! returning to collection…") # Confirms the physical placement while the new sticker completes its bounce-and-slam.
+	_return_to_shop_remaining = MANUAL_RETURN_DELAY # Reuses the established short landing delay before returning to the collection.
+
 func _spawn_placement_record(placement: Dictionary, animate_landing: bool) -> void: # Recreates one persistent normal or special placement as a fully interactive physical Sticker node.
 	var page_index: int = maxi(int(placement.get("page", 0)), 0) # Retrieves the absolute virtual page assigned to this persistent sticker copy.
 	if StickerBookLayout.get_spread_index_for_page(page_index) != _active_spread_index: # Rejects hidden-spread placements before allocating textures, mesh, picking, or shader resources.
