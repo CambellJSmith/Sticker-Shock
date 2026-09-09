@@ -10,7 +10,9 @@ var _app_id: int = 0 # Stores the configured or runtime-resolved Steam applicati
 var _steam_id: int = 0 # Stores the local player's Steam account identifier after successful initialization.
 var _persona_name: String = "" # Stores the local player's current Steam display name for lightweight UI access.
 var _subscribed: bool = false # Stores whether Steam reports that the current account owns a license for this application.
-var _running_on_deck: bool = false # Stores whether Steam reports that the current session is running on Steam Deck hardware.
+var _steam_hardware_type: int = 0 # Stores Steamworks SDK 1.65's diagnostic hardware classification for this session.
+var _steam_hardware_default_config: int = 0 # Stores Steamworks SDK 1.65's recommended hardware configuration tier for functional defaults.
+var _running_under_proton: bool = false # Stores whether Steam reports that the current process is running through Proton.
 
 func _ready() -> void: # Initializes Steam before the main scene starts using any platform services.
 	process_mode = Node.PROCESS_MODE_ALWAYS # Keeps Steam callbacks moving even while Sticker-Shock pauses its gameplay SceneTree.
@@ -30,7 +32,9 @@ func _ready() -> void: # Initializes Steam before the main scene starts using an
 	_steam_id = int(Steam.getSteamID()) # Caches the local account identity once instead of repeatedly crossing the extension boundary.
 	_persona_name = str(Steam.getPersonaName()) # Caches the current local Steam persona name for ordinary game presentation.
 	_subscribed = bool(Steam.isSubscribed()) # Caches Steam's ownership result for optional release enforcement and diagnostics.
-	_running_on_deck = bool(Steam.isSteamRunningOnSteamDeck()) # Caches the platform hint after Steam utilities are valid.
+	_steam_hardware_type = int(Steam.isRunningOnSteamHardware()) # Uses the current SDK 1.65 hardware classification instead of the removed dedicated Steam Deck query.
+	_steam_hardware_default_config = int(Steam.getSteamHardwareDefaultConfig()) # Caches Steam's current recommended hardware tier for future presentation defaults without per-frame API calls.
+	_running_under_proton = bool(Steam.isRunningUnderProton()) # Caches the current Proton environment hint for diagnostics and future platform-specific compatibility decisions.
 	if bool(ProjectSettings.get_setting(REQUIRE_STEAM_SETTING, false)) and not _subscribed: # Enforces ownership only when the project explicitly requests Steam-only execution.
 		push_error("Steam initialized, but the current account does not own Sticker-Shock") # Reports the ownership failure clearly before teardown.
 		shutdown() # Releases the initialized Steam API before leaving the process.
@@ -63,8 +67,14 @@ func get_persona_name() -> String: # Returns the local player's cached Steam dis
 func is_subscribed() -> bool: # Reports Steam's cached ownership result for the current application.
 	return _subscribed # Exposes ownership without allowing callers to mutate enforcement state.
 
-func is_running_on_deck() -> bool: # Reports whether the current Steam session was identified as running on Steam Deck.
-	return _running_on_deck # Exposes the cached platform hint for future input or presentation choices.
+func get_steam_hardware_type() -> int: # Returns Steamworks' diagnostic hardware classification for the current session.
+	return _steam_hardware_type # Exposes the cached SDK 1.65 hardware enum value without another native call.
+
+func get_steam_hardware_default_config() -> int: # Returns Steamworks' recommended hardware-default tier for functional graphics or performance defaults.
+	return _steam_hardware_default_config # Exposes the cached SDK 1.65 configuration enum value without another native call.
+
+func is_running_under_proton() -> bool: # Reports whether Steam identified the current process as running through Proton.
+	return _running_under_proton # Exposes the cached compatibility-layer state for diagnostics or future platform behavior.
 
 func open_overlay(dialog: String) -> bool: # Opens one supported Steam overlay destination while leaving gameplay state ownership to the caller.
 	if not is_available() or dialog.is_empty(): # Rejects overlay requests when Steam is unavailable or no destination was supplied.
