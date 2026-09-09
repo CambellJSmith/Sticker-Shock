@@ -81,8 +81,10 @@ anti_aliasing/quality/msaa_3d=2
 
 [steam]
 
-initialization/app_data/app_id=0
+initialization/app_data/app_id=4281680
 initialization/processes/initialize_on_startup=false
 initialization/processes/embed_callbacks=false
+integration/content_dlc_app_id=4478190
+integration/require_content_dlc=false
 integration/require_steam=false
 integration/restart_through_steam=true
