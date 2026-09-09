@@ -1,13 +1,13 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://d2o7q8a3brffu"]
 
-[ext_resource type="Script" path="res://scripts/removable_special_edition_game_controller.gd" id="1_controller"]
+[ext_resource type="Script" uid="uid://b3dlkw1gnthpm" path="res://scripts/removable_special_edition_game_controller.gd" id="1_controller"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_ui.tscn" id="2_ui"]
 
-[node name="main" type="Node"]
+[node name="main" type="Node" unique_id=1793246314]
 process_mode = 3
 script = ExtResource("1_controller")
 
-[node name="worlds" type="Node3D" parent="."]
+[node name="worlds" type="Node3D" parent="." unique_id=1671300358]
 process_mode = 1
 
-[node name="game_ui" parent="." instance=ExtResource("2_ui")]
+[node name="game_ui" parent="." unique_id=702922304 instance=ExtResource("2_ui")]

@@ -1,59 +1,79 @@
 ; Engine configuration file.
-; Best edited using the editor where possible.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
+
 config/name="realistic_sticker_book"
 run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7")
 
 [autoload]
+
 StickerContentMigration="*res://scripts/sticker_content_migration.gd"
 
 [display]
+
 window/size/viewport_width=1280
 window/size/viewport_height=800
 window/size/window_width_override=1280
 window/size/window_height_override=800
 window/stretch/mode="canvas_items"
 
-[rendering]
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
-anti_aliasing/quality/msaa_3d=2
-textures/default_filters/use_nearest_mipmap_filter=false
-
-[physics]
-common/enable_pause_aware_picking=true
-
 [gui]
+
 theme/custom="res://assets/ui/game_theme.tres"
 
 [input]
+
 Button_A={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadButton,"button_index":0)]
+"events": [Object(InputEventJoypadButton,"resource_local_to_scene":false,"resource_name":"","device":0,"button_index":0,"pressure":0.0,"pressed":false,"script":null)
+]
 }
 Button_B={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadButton,"button_index":1)]
+"events": [Object(InputEventJoypadButton,"resource_local_to_scene":false,"resource_name":"","device":0,"button_index":1,"pressure":0.0,"pressed":false,"script":null)
+]
 }
 Button_Start={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadButton,"button_index":6)]
+"events": [Object(InputEventJoypadButton,"resource_local_to_scene":false,"resource_name":"","device":0,"button_index":6,"pressure":0.0,"pressed":false,"script":null)
+]
 }
 StickLeft_North={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadMotion,"axis":1,"axis_value":-1.0)]
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":0,"axis":1,"axis_value":-1.0,"script":null)
+]
 }
 StickLeft_South={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadMotion,"axis":1,"axis_value":1.0)]
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":0,"axis":1,"axis_value":1.0,"script":null)
+]
 }
 StickLeft_West={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadMotion,"axis":0,"axis_value":-1.0)]
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":0,"axis":0,"axis_value":-1.0,"script":null)
+]
 }
 StickLeft_East={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadMotion,"axis":0,"axis_value":1.0)]
+"events": [Object(InputEventJoypadMotion,"resource_local_to_scene":false,"resource_name":"","device":0,"axis":0,"axis_value":1.0,"script":null)
+]
 }
+
+[physics]
+
+common/enable_pause_aware_picking=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_3d=2
