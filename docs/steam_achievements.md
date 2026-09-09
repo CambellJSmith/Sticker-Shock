@@ -4,7 +4,7 @@ Sticker-Shock uses the achievement namespace of the base launcher Steam applicat
 
 ## Steamworks dashboard definitions
 
-Create every entry below as a normal boolean achievement under App `4281680`. Use the API name exactly as written. All are visible (`Hidden: No`) and use no progress stat (`Progress stat: None`).
+Create every entry below as a normal client-set boolean achievement under App `4281680`. Use the API name exactly as written. All are visible (`Hidden: No`) and intentionally use no progress stat (`Progress stat: None`).
 
 | API name | Display name | Description |
 | --- | --- | --- |
@@ -34,11 +34,11 @@ Create every entry below as a normal boolean achievement under App `4281680`. Us
 | `STICKER_SHOCK_ALL_RARITIES` | Rarity Roundup | Collect at least one sticker from every rarity currently represented in the catalogue. |
 | `STICKER_SHOCK_FIRST_MARKET_SALE` | Market Debut | Sell your first sticker at the collector exchange. |
 
-Each achievement also needs the normal Steamworks locked and unlocked icon artwork before the dashboard configuration is considered complete.
+Each achievement also needs the normal Steamworks achieved and unachieved icon artwork. The repository intentionally does not invent those assets.
 
 ## Scaling rules
 
-Do not create fixed Steam progress-stat thresholds for the percentage/content-completion achievements above. The game intentionally evaluates them locally against the catalogue shipped in the running build and sends Steam only the final boolean unlock.
+Do not create fixed Steam progress-stat thresholds for the percentage/content-completion achievements above. The game evaluates their live denominators locally and sends Steam only the final boolean unlock.
 
 Collection milestones use exact integer ratio comparisons against `StickerCatalog.get_sticker_count()`. For example, the 25% achievement is satisfied when `discovered_count * 4 >= current_catalogue_count`; this behaves like a ceiling percentage without floating-point rounding and automatically grows when more sticker definitions are added.
 
@@ -46,23 +46,23 @@ Book milestones use the same current-catalogue denominator but count distinct au
 
 `ALL_UNIQUES` counts all current definitions authored with rarity `Unique`. `ALL_PACKS` uses the current purchasable pack list. `COMPLETE_ONE_PACK` derives each pack's denominator from the current random-pull designs assigned to that pack. `ALL_RARITIES` derives its denominator from the nonempty rarity labels currently represented by authored definitions.
 
-Steam achievements are permanent once Steam unlocks them. If a player earns a catalogue-completion achievement and a later game update adds more stickers, the already-earned Steam achievement remains unlocked; players who have not earned it yet are evaluated against the newer, larger catalogue.
+Steam achievements are permanent once earned. The game mirrors that behavior locally: as soon as any rule is satisfied, its API name is persisted to `user://sticker_achievements.json` before Steam synchronization is attempted. This means an achievement earned offline remains earned if the qualifying sticker is later sold, and a catalogue-completion achievement earned before a future content expansion is not invalidated by the new stickers.
 
 ## Runtime architecture
 
-`StickerAchievementRules` contains pure progression evaluation and Steam API names. It does not call Steamworks.
+`StickerAchievementRules` contains the exact 25 API names plus pure progression evaluation. It never calls Steamworks.
 
-`SteamAchievements` owns Steam synchronization, bounded retries, event-history persistence, and debug diagnostics. It requests user stats after `SteamManager` initializes, reconciles the loaded collection after the current catalogue and saves are ready, and keeps no gameplay signal connections.
+`SteamAchievements` owns permanent local earning, Steam synchronization, bounded retries, and debug diagnostics. It requests user stats after `SteamManager` initializes and reconciles the loaded collection after current content and saves are ready. No Godot signals are used.
 
-Newly revealed pack or Unique rewards call `SteamAchievements.sync_progress()` after ownership has already committed. Complete five-sticker pack rewards also persist the first-pack event. Physical book changes are detected by polling only `StickerBookState.get_placement_count()` every half second; the full catalogue scan runs only when that constant-time count changes. The first successful market sale is persisted as an event because current inventory cannot reconstruct historical sales later.
+New pack and Unique rewards call `SteamAchievements.sync_progress()` after ownership has already committed. A complete pack reward also permanently records `FIRST_PACK`. The first successful market sale permanently records `FIRST_MARKET_SALE` only after the atomic sale transaction succeeds.
 
-Event-only history is stored at `user://sticker_achievement_events.json`. This lets a pack-open or market-sale event earned while Steam is unavailable reconcile on a later Steam-enabled launch. State-derived achievements require no additional local history because they are reconstructed from the normal economy/book saves.
+Physical book milestones use a half-second poll of only `StickerBookState.get_placement_count()`, which is a constant-time array-size read. A full catalogue achievement scan runs only when that count changes. This keeps book achievement tracking decoupled from persistence and avoids signal wiring while remaining effective offline.
 
 ## Retry and idempotency behavior
 
-Every earned achievement enters one generic pending queue. The manager attempts it immediately, then retries at most ten times at half-second intervals if Steam's asynchronous user-stats cache is not ready. A bad/unpublished API name is exhausted for the current session so progression changes cannot create an infinite retry loop; state-derived conditions are evaluated again on the next launch, and event conditions remain persisted locally.
+Every locally earned achievement enters one generic pending queue when Steam is available. The manager attempts it immediately, then retries at most ten times at half-second intervals if Steam's asynchronous stats state is not ready. A bad or unpublished API name is exhausted for the current session so it cannot create an infinite retry loop; the permanent local achievement file causes it to retry on the next launch.
 
-`SteamProgress.unlock_achievement()` first reads `Steam.getAchievement()`. If Steam already reports `{ "ret": true, "achieved": true }`, the helper treats the achievement as synchronized without issuing a redundant `setAchievement()` or `storeStats()`. Newly earned achievements still use `setAchievement()` followed by `storeStats()`.
+`SteamProgress.unlock_achievement()` first reads `Steam.getAchievement()`. If Steam already reports `{ "ret": true, "achieved": true }`, the helper treats the achievement as synchronized without issuing redundant `setAchievement()` or `storeStats()` calls. Newly earned achievements still use `setAchievement()` followed promptly by `storeStats()`.
 
 ## Debug diagnostics
 
@@ -71,6 +71,7 @@ Editor runs and debug exports print achievement synchronization to Godot Output.
 A newly earned achievement normally produces lines like:
 
 ```text
+SteamAchievements: earned locally api=STICKER_SHOCK_RAINBOW_EDITION
 SteamAchievements: queued api=STICKER_SHOCK_RAINBOW_EDITION steam_available=true
 SteamAchievements: attempt api=STICKER_SHOCK_RAINBOW_EDITION number=1
 Steam achievement state: api=STICKER_SHOCK_RAINBOW_EDITION phase=before setAchievement state={ "ret": true, "achieved": false }
