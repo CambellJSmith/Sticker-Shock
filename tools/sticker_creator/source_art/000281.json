@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "alpha_threshold": 128,
+  "border": {
+    "width": 35,
+    "smoothing": 20,
+    "colour": "#73b9ef"
+  }
+}
