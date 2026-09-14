@@ -11,8 +11,8 @@ uniform float curl_width = 0.34; // Controls the material distance used by the r
 uniform float curl_growth = 0.45; // Controls how quickly the peel reaches its full rounded curl radius.
 uniform float alpha_cutoff = 0.08; // Controls the source-artwork alpha threshold treated as physical sticker material.
 uniform float lift_scale = 1.0; // Controls the vertical height of the physical curl.
-uniform vec2 surface_detail_offset = vec2(0.0); // Offsets the procedural handling texture so duplicate stickers do not share identical grease patterns.
-uniform float surface_detail_rotation = 0.0; // Rotates the procedural handling texture so smudges and oily splotches vary between copies.
+uniform vec2 surface_detail_offset = vec2(0.0); // Stores the stable per-copy handling seed offset derived from the physical sticker identity.
+uniform float surface_detail_rotation = 0.0; // Stores the stable per-copy handling rotation derived from the physical sticker identity.
 
 varying float peel_region; // Carries whether a vertex belongs to the lifted region into the fragment stage.
 
@@ -51,7 +51,7 @@ vec2 rotate_detail_uv(vec2 uv, float angle) { // Rotates the procedural handling
 	float cosine_value = cos(angle); // Caches the handling-space cosine once for the coordinate rotation.
 	vec2 centered_uv = uv - vec2(0.5); // Moves the UV origin to sticker center before rotation.
 	vec2 rotated_uv = vec2(centered_uv.x * cosine_value - centered_uv.y * sine_value, centered_uv.x * sine_value + centered_uv.y * cosine_value); // Applies a standard 2D rotation to the centered handling-space coordinate.
-	return rotated_uv + vec2(0.5) + surface_detail_offset; // Restores center-relative coordinates and adds the per-copy offset used to vary grease patterns.
+	return rotated_uv + vec2(0.5) + surface_detail_offset; // Restores center-relative coordinates and adds the stable per-copy translation seed.
 } // Completes handling-space coordinate rotation.
 
 void vertex() { // Deforms the subdivided sticker grid into a physical cylindrical peel.
@@ -100,20 +100,38 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 	if (artwork.a < alpha_cutoff) { // Rejects every fragment the supplied artwork marks as transparent.
 		discard; // Removes transparent image space from colour, depth, and shadow rendering.
 	} // Completes source-alpha silhouette clipping.
-	vec2 detail_uv = rotate_detail_uv(UV, surface_detail_rotation); // Builds the stable per-sticker handling coordinate that moves naturally with the sheet.
-	float broad_grease_noise = fbm(detail_uv * 4.6 + vec2(1.7, -3.4)); // Creates large soft greasy regions with no directional line structure.
-	float secondary_grease_noise = fbm(detail_uv * 9.5 + vec2(-5.3, 9.1)); // Breaks the broad grease regions into irregular overlapping splotches.
-	float smudge_detail_noise = fbm(detail_uv * 22.0 + vec2(6.4, -7.8)); // Adds smaller cloudy handling marks inside and around the broad oily patches.
-	float micro_surface_noise = fbm(detail_uv * 75.0 + vec2(14.2, 3.6)); // Supplies very fine non-directional laminate variation so clean areas are not mathematically uniform.
-	float grease_shape = broad_grease_noise * 0.72 + secondary_grease_noise * 0.28; // Combines two scales into the main soft-edged grease distribution.
-	float grease_strength = smoothstep(0.48, 0.72, grease_shape) * mix(0.62, 1.0, smudge_detail_noise); // Produces irregular shiny grease splotches with natural internal breakup.
-	float smudge_shape = secondary_grease_noise * 0.62 + smudge_detail_noise * 0.38; // Combines mid and fine scales into broader cloudy fingerprint-like handling residue.
-	float smudge_strength = smoothstep(0.50, 0.72, smudge_shape) * (1.0 - grease_strength * 0.55); // Produces softer non-greasy smudges around the strongest oily patches.
-	float grease_gloss = grease_strength * 0.30; // Converts oily residue into a strong local reduction in roughness.
-	float grease_specular = grease_strength * 0.28; // Converts oily residue into a stronger local specular reflection.
-	float smudge_haze = smudge_strength * 0.11; // Converts cloudy handling residue into a small local roughness increase around grease.
-	float smudge_specular_loss = smudge_strength * 0.10; // Softly suppresses specular response in hazier handling marks.
-	float micro_roughness = (micro_surface_noise - 0.5) * 0.075; // Converts fine non-directional laminate grain into a restrained signed roughness perturbation.
+	vec2 detail_uv = rotate_detail_uv(UV, surface_detail_rotation); // Builds the stable per-copy handling space that moves naturally with this physical sheet.
+	float instance_seed_a = hash12(surface_detail_offset * vec2(13.71, 29.43) + vec2(surface_detail_rotation * 0.73, 4.17)); // Derives one stable per-copy random channel from the physical sticker identity.
+	float instance_seed_b = hash12(surface_detail_offset * vec2(-37.11, 17.83) + vec2(9.31, surface_detail_rotation * 1.19)); // Derives an independent per-copy channel so broad grease does not move as one shared template.
+	float instance_seed_c = hash12(surface_detail_offset * vec2(23.57, -41.29) + vec2(surface_detail_rotation * 1.61, -6.73)); // Derives an independent per-copy channel for secondary blotch structure and scale.
+	float instance_seed_d = hash12(surface_detail_offset * vec2(-53.17, -11.97) + vec2(15.41, surface_detail_rotation * 2.03)); // Derives an independent per-copy channel for smudge density and fine detail.
+	vec2 broad_offset = vec2(instance_seed_a * 31.0 - 15.5, instance_seed_b * 37.0 - 18.5); // Sends the broad grease layer to a distinct region of procedural space for this copy.
+	vec2 secondary_offset = vec2(instance_seed_c * 43.0 - 21.5, instance_seed_a * 47.0 - 23.5); // Gives the secondary grease layer its own unrelated per-copy translation.
+	vec2 smudge_offset = vec2(instance_seed_d * 53.0 - 26.5, instance_seed_c * 59.0 - 29.5); // Gives cloudy smudges their own unrelated per-copy translation.
+	vec2 micro_offset = vec2(instance_seed_b * 67.0 - 33.5, instance_seed_d * 71.0 - 35.5); // Gives laminate microstructure a separate per-copy translation from all visible grease shapes.
+	float broad_scale = mix(3.3, 6.2, instance_seed_c); // Varies the physical size of broad greasy regions between individual sticker copies.
+	float secondary_scale = mix(7.6, 13.4, instance_seed_d); // Varies the size of medium oily blotches independently from the broad layer.
+	float smudge_scale = mix(16.0, 28.0, instance_seed_b); // Varies cloudy handling-mark scale so duplicates do not share the same visual rhythm.
+	float micro_scale = mix(62.0, 92.0, instance_seed_a); // Varies only fine laminate breakup without changing the authored artwork.
+	float broad_grease_noise = fbm(detail_uv * broad_scale + broad_offset); // Creates a genuinely per-instance broad grease structure rather than a translated common pattern.
+	float secondary_grease_noise = fbm(detail_uv * secondary_scale + secondary_offset); // Creates independent medium grease structure for this physical copy.
+	float smudge_detail_noise = fbm(detail_uv * smudge_scale + smudge_offset); // Creates independent cloudy handling residue for this physical copy.
+	float micro_surface_noise = fbm(detail_uv * micro_scale + micro_offset); // Creates independent fine laminate variation for this physical copy.
+	float grease_blend = mix(0.54, 0.82, instance_seed_b); // Changes how much broad versus medium structure dominates each copy's oily residue.
+	float grease_shape = mix(secondary_grease_noise, broad_grease_noise, grease_blend); // Combines independently seeded grease scales with a per-copy structural balance.
+	float grease_threshold_low = mix(0.43, 0.54, instance_seed_d); // Varies how much of this copy is occupied by visible grease without changing its persistent identity.
+	float grease_threshold_high = grease_threshold_low + mix(0.16, 0.25, instance_seed_c); // Varies edge softness and patch coverage while preserving a usable threshold range.
+	float grease_strength = smoothstep(grease_threshold_low, grease_threshold_high, grease_shape) * mix(0.58, 1.0, smudge_detail_noise); // Produces per-copy oily patches whose position, size, density, and internal breakup all differ.
+	float smudge_blend = mix(0.46, 0.74, instance_seed_a); // Changes the balance between medium blotches and fine cloudy residue on each physical copy.
+	float smudge_shape = mix(smudge_detail_noise, secondary_grease_noise, smudge_blend); // Combines independently seeded layers into the softer smudge distribution.
+	float smudge_threshold_low = mix(0.46, 0.57, instance_seed_c); // Varies cloudy smudge coverage independently from grease coverage.
+	float smudge_threshold_high = smudge_threshold_low + mix(0.15, 0.23, instance_seed_b); // Varies cloudy smudge edge softness between individual copies.
+	float smudge_strength = smoothstep(smudge_threshold_low, smudge_threshold_high, smudge_shape) * (1.0 - grease_strength * 0.55); // Produces distinct hazy handling residue around each copy's unique oily patches.
+	float grease_gloss = grease_strength * mix(0.25, 0.36, instance_seed_a); // Gives individual copies modestly different oily gloss intensity without changing the material class.
+	float grease_specular = grease_strength * mix(0.23, 0.34, instance_seed_d); // Gives individual copies modestly different highlight strength across their unique grease pattern.
+	float smudge_haze = smudge_strength * mix(0.085, 0.135, instance_seed_b); // Gives cloudy marks a per-copy haze level while keeping them secondary to grease.
+	float smudge_specular_loss = smudge_strength * mix(0.075, 0.125, instance_seed_c); // Gives cloudy marks a per-copy reflection suppression range.
+	float micro_roughness = (micro_surface_noise - 0.5) * mix(0.060, 0.090, instance_seed_d); // Converts unique fine laminate grain into restrained per-copy roughness variation.
 	if (FRONT_FACING) { // Selects the printed front face when the artwork side is visible.
 		int active_edition = edition; // Reads the explicit current finish selected by the edition-aware game systems.
 		if (active_edition == 0 && special_edition) { // Preserves pre-migration callers that only know the original boolean special flag.
