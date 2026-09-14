@@ -46,6 +46,39 @@ float fbm(vec2 p) { // Accumulates several frequencies of value noise for richer
 	return total; // Returns the combined broad-to-fine fractal signal.
 } // Completes fractal noise synthesis.
 
+float seeded_hash12(vec2 p, float seed) { // Builds a different pseudo-random lattice for each physical sticker seed rather than sampling one shared field at another coordinate.
+	vec3 seed_mix = vec3(seed * 17.17 + 0.11, seed * 31.31 + 0.37, seed * 47.47 + 0.73); // Expands the scalar copy seed into unrelated perturbations for every hash component.
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031 + seed_mix); // Injects the physical-copy seed before lattice scrambling so every cell value changes between sticker instances.
+	p3 += dot(p3, p3.yzx + 33.33 + seed * 19.19); // Mixes the seed through the nonlinear hash state so the result is not equivalent to translating the original noise field.
+	return fract((p3.x + p3.y) * p3.z + seed * 97.97); // Returns the final seeded zero-to-one lattice value.
+} // Completes per-copy lattice hashing.
+
+float seeded_noise2(vec2 p, float seed) { // Produces smoothed value noise whose lattice values are unique to one physical sticker copy.
+	vec2 cell = floor(p); // Finds the integer lattice cell containing the sample point.
+	vec2 local = fract(p); // Finds the local position inside the current seeded value-noise cell.
+	vec2 blend = local * local * (3.0 - 2.0 * local); // Uses Hermite smoothing so the seeded lattice still blends without hard seams.
+	float bottom_left = seeded_hash12(cell, seed); // Reads this copy's pseudo-random lower-left corner value.
+	float bottom_right = seeded_hash12(cell + vec2(1.0, 0.0), seed); // Reads this copy's pseudo-random lower-right corner value.
+	float top_left = seeded_hash12(cell + vec2(0.0, 1.0), seed); // Reads this copy's pseudo-random upper-left corner value.
+	float top_right = seeded_hash12(cell + vec2(1.0, 1.0), seed); // Reads this copy's pseudo-random upper-right corner value.
+	float bottom_mix = mix(bottom_left, bottom_right, blend.x); // Interpolates the copy-specific bottom edge smoothly across the cell.
+	float top_mix = mix(top_left, top_right, blend.x); // Interpolates the copy-specific top edge smoothly across the cell.
+	return mix(bottom_mix, top_mix, blend.y); // Interpolates vertically to produce this physical copy's final smooth noise sample.
+} // Completes per-copy value-noise sampling.
+
+float seeded_fbm(vec2 p, float seed) { // Accumulates independent seeded noise octaves so each sticker owns a genuinely different grease topology.
+	float total = 0.0; // Seeds the fractal sum.
+	float amplitude = 0.5; // Seeds the first octave amplitude.
+	float octave_seed = seed; // Starts the first octave from this layer's stable physical-copy seed.
+	for (int octave = 0; octave < 4; octave++) { // Matches the existing octave count so the procedural handling cost remains bounded.
+		total += seeded_noise2(p, octave_seed) * amplitude; // Adds one octave from this copy's independently seeded lattice instead of the shared noise field.
+		p = p * 2.03 + vec2(13.1, 7.7); // Preserves the established frequency progression and octave decorrelation.
+		octave_seed = fract(octave_seed * 1.6180339 + 0.3819660); // Advances to another deterministic lattice seed so one copy's octaves are not repeated versions of each other.
+		amplitude *= 0.5; // Halves amplitude each octave for the established fractal falloff.
+	} // Completes seeded octave accumulation.
+	return total; // Returns a grease field whose actual random lattice differs for this sticker instance.
+} // Completes per-copy fractal noise synthesis.
+
 vec2 rotate_detail_uv(vec2 uv, float angle) { // Rotates the procedural handling space around the sticker center without affecting artwork placement.
 	float sine_value = sin(angle); // Caches the handling-space sine once for efficient coordinate rotation.
 	float cosine_value = cos(angle); // Caches the handling-space cosine once for the coordinate rotation.
@@ -113,10 +146,10 @@ void fragment() { // Shades the artwork-defined sticker surface, adhesive revers
 	float secondary_scale = mix(7.6, 13.4, instance_seed_d); // Varies the size of medium oily blotches independently from the broad layer.
 	float smudge_scale = mix(16.0, 28.0, instance_seed_b); // Varies cloudy handling-mark scale so duplicates do not share the same visual rhythm.
 	float micro_scale = mix(62.0, 92.0, instance_seed_a); // Varies only fine laminate breakup without changing the authored artwork.
-	float broad_grease_noise = fbm(detail_uv * broad_scale + broad_offset); // Creates a genuinely per-instance broad grease structure rather than a translated common pattern.
-	float secondary_grease_noise = fbm(detail_uv * secondary_scale + secondary_offset); // Creates independent medium grease structure for this physical copy.
-	float smudge_detail_noise = fbm(detail_uv * smudge_scale + smudge_offset); // Creates independent cloudy handling residue for this physical copy.
-	float micro_surface_noise = fbm(detail_uv * micro_scale + micro_offset); // Creates independent fine laminate variation for this physical copy.
+	float broad_grease_noise = seeded_fbm(detail_uv * broad_scale + broad_offset, instance_seed_a); // Uses a different random lattice for every physical copy's broad grease rather than reusing one translated field.
+	float secondary_grease_noise = seeded_fbm(detail_uv * secondary_scale + secondary_offset, instance_seed_b); // Uses an independently seeded random lattice for this copy's medium oily blotches.
+	float smudge_detail_noise = seeded_fbm(detail_uv * smudge_scale + smudge_offset, instance_seed_c); // Uses an independently seeded random lattice for this copy's cloudy handling residue.
+	float micro_surface_noise = seeded_fbm(detail_uv * micro_scale + micro_offset, instance_seed_d); // Uses an independently seeded random lattice for this copy's fine laminate variation.
 	float grease_blend = mix(0.54, 0.82, instance_seed_b); // Changes how much broad versus medium structure dominates each copy's oily residue.
 	float grease_shape = mix(secondary_grease_noise, broad_grease_noise, grease_blend); // Combines independently seeded grease scales with a per-copy structural balance.
 	float grease_threshold_low = mix(0.43, 0.54, instance_seed_d); // Varies how much of this copy is occupied by visible grease without changing its persistent identity.
