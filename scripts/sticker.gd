@@ -17,6 +17,7 @@ var _collision_shape: CollisionShape3D # Stores the lightweight flat picking vol
 var _landing_preview: StickerLandingPreview # Stores the independent flat silhouette that marks the exact carried sticker landing transform.
 var _state: int = InteractionState.RESTING # Stores the current physical interaction phase without overlapping boolean states.
 var _grab_local: Vector2 = Vector2.ZERO # Stores the local material point selected when the drag started.
+var _grab_starts_on_outer_edge: bool = false # Tracks whether the current peel origin is constrained to the artwork alpha boundary and therefore must travel inward across the graphic.
 var _drag_start_world: Vector3 = Vector3.ZERO # Stores the page-plane pointer position where the current drag began.
 var _drag_origin_transform: Transform3D = Transform3D.IDENTITY # Stores the sticker transform before the current peel starts.
 var _current_local_drag: Vector2 = Vector2.ZERO # Stores the current local peel displacement while material remains attached.
@@ -72,6 +73,8 @@ func begin_drag(page_world_point: Vector3) -> void: # Captures the clicked mater
 	_drag_origin_transform = global_transform # Stores the complete root transform before any peel-driven visual changes occur.
 	var grab_point_local: Vector3 = _drag_origin_transform.affine_inverse() * page_world_point # Converts the clicked world point into undeformed sticker-local material space.
 	_grab_local = Vector2(grab_point_local.x, grab_point_local.z) # Stores only the sticker-plane axes used by the curl shader.
+	var closest_outer_edge: Vector2 = _visual.get_closest_outer_edge_point(_grab_local) # Resolves the cached alpha-boundary point nearest the material grab once per gesture.
+	_grab_starts_on_outer_edge = _grab_local.is_equal_approx(closest_outer_edge) # Enables cross-graphic direction enforcement only for genuine edge-constrained peel origins.
 	_current_local_drag = Vector2.ZERO # Starts the new peel from a completely flat material state.
 	_turnover_elapsed = 0.0 # Clears any stale turnover timing from a previous completed gesture.
 	_turnover_angle = 0.0 # Starts the attached peel without any whole-sheet rotation.
@@ -96,6 +99,12 @@ func update_drag(page_world_point: Vector3) -> void: # Converts pointer motion i
 		_contact_shadow.set_peel(_grab_local, _current_local_drag) # Keeps the complete contact shadow while no material has actually lifted.
 		return # Waits for a meaningful drag before calculating the full-peel boundary.
 	var peel_direction: Vector2 = local_drag / drag_distance # Defines the current direction in which the sticker is being peeled.
+	if _grab_starts_on_outer_edge and not _is_drag_crossing_sticker_graphic(peel_direction): # Rejects edge pulls aimed away from the sticker instead of through the visible alpha silhouette.
+		_current_local_drag = Vector2.ZERO # Keeps the sheet physically flat while the player is pulling away from the selected edge.
+		global_transform = _drag_origin_transform # Holds the sticker at its original attachment transform while the invalid outward pull is ignored.
+		_visual.set_peel(_grab_local, _current_local_drag) # Prevents the shader from visually curling the whole sheet off the page in the invalid outward direction.
+		_contact_shadow.set_peel(_grab_local, _current_local_drag) # Keeps the complete contact shadow because no valid cross-graphic peel has begun.
+		return # Waits for the held pointer to move back through the sticker graphic before allowing deformation.
 	var active_curl_width: float = minf(StickerMesh.PEEL_CURL_WIDTH, maxf(drag_distance * StickerMesh.PEEL_CURL_GROWTH, 0.002)) # Reproduces the shader's current bend width exactly so CPU contact logic and rendered geometry share one moving fold.
 	if not _has_lost_all_page_contact(peel_direction, drag_distance, active_curl_width): # Keeps the sticker attached only while some visible artwork material remains on the unpeeled side of the fold.
 		_current_local_drag = local_drag # Lets the shader use the complete pointer displacement during the attached peel.
@@ -119,7 +128,7 @@ func end_drag() -> bool: # Releases the pointer and starts either incomplete-pee
 		_landing_target_position = global_position # Copies the release position so horizontal placement never drifts during landing.
 		_landing_target_position.y = _rest_height # Places the final root exactly back on its current paper-stack attachment height.
 		_landing_peak_height = maxf(_landing_start_position.y, _rest_height + CARRY_HEIGHT) + LANDING_BOUNCE_HEIGHT # Raises the sticker a little above its normal carried height before the downward slam.
-		_landing_start_turnover_angle = _turnover_angle # Preserves any unfinished flip so fast releases still land printed-face-up.
+		_landing_start_turnover_angle = _turnover_angle # Preserves any unfinished turnover angle so fast releases still land printed-face-up.
 		return true # Reports that the fully detached sticker has committed to a new placement.
 	return false # Rejects releases that do not belong to an active pointer drag.
 
@@ -179,6 +188,14 @@ func _update_carry_position(page_world_point: Vector3) -> void: # Keeps a fully 
 	target_position.y = _rest_height + _carry_height # Holds the detached sheet at the exact height produced by the curl on the frame the final material point leaves the page.
 	global_position = target_position # Applies only cursor-following movement with no spring or tendency toward the original position.
 	_landing_preview.show_at(global_basis, global_position, _rest_height) # Projects the exact final flat transform onto the page as a faint alpha-silhouette outline.
+
+func _is_drag_crossing_sticker_graphic(peel_direction: Vector2) -> bool: # Requires an edge-origin peel to point through more alpha material ahead than lies behind the selected boundary point.
+	var grab_projection: float = _grab_local.dot(peel_direction) # Projects the selected alpha-edge point onto the current drag direction.
+	var maximum_material_projection: float = _visual.get_maximum_material_projection(peel_direction) # Finds the source-alpha support point farthest ahead in the attempted peel direction.
+	var minimum_material_projection: float = -_visual.get_maximum_material_projection(-peel_direction) # Reuses the cached support query in the opposite direction to recover the source-alpha support point farthest behind.
+	var material_ahead: float = maxf(maximum_material_projection - grab_projection, 0.0) # Measures how much real sticker graphic the fold would have to cross in front of the selected edge point.
+	var material_behind: float = maxf(grab_projection - minimum_material_projection, 0.0) # Measures how much real sticker graphic lies in the opposite outward direction.
+	return material_ahead > material_behind # Allows deformation only when the pointer is moving predominantly inward across the sticker rather than away from it.
 
 func _has_lost_all_page_contact(peel_direction: Vector2, drag_distance: float, active_curl_width: float) -> bool: # Detects the exact frame when no visible sticker material remains on the page-facing side of the moving fold.
 	var grab_projection: float = _grab_local.dot(peel_direction) # Projects the grabbed material point onto the current peel direction exactly as the vertex shader does.
