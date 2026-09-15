@@ -14,11 +14,13 @@ const MAX_VALID_QUATERNION_LENGTH_SQUARED: float = 1.50 # Rejects malformed moti
 const MIN_MOTION_RADIANS: float = 0.0007 # Filters tiny sensor jitter below roughly four hundredths of a degree per sample.
 const MAX_SAMPLE_DELTA_RADIANS: float = PI / 3.0 # Treats implausible single-frame rotations above sixty degrees as reconnect/recalibration discontinuities.
 const MOTION_WARMUP_INVALID_SAMPLE_LIMIT: int = 180 # Gives a known motion controller time to activate its IMU before treating repeated invalid samples as unavailable.
+const MOTION_DEBUG_SAMPLE_INTERVAL: int = 60 # Reports persistent missing motion data roughly once per second at a conventional 60 Hz debug run without spamming every frame.
 
 var _input_initialized: bool = false # Keeps Steam Input initialization idempotent across repeated inspection sessions.
 var _session_active: bool = false # Restricts motion polling to an open sticker inspection.
 var _controller_handle: int = 0 # Stores the Steam Input handle selected for the current inspection session.
 var _controller_type: int = 0 # Stores the Steam Input hardware classification for diagnostics and player-facing hints.
+var _motion_ready: bool = false # Becomes true only after the selected controller actually returns a valid sensor-fused orientation.
 var _has_reference_orientation: bool = false # Tracks whether one valid motion sample has established the neutral incremental reference.
 var _previous_orientation: Quaternion = Quaternion.IDENTITY # Stores the previous raw Steam sensor-fused orientation for frame-to-frame delta calculation.
 var _motion_active: bool = false # Reports whether the most recent valid sample contained deliberate gyro movement above the jitter threshold.
@@ -29,15 +31,18 @@ func begin_session() -> bool: # Starts automatic gyro tracking for an inspection
 	_session_active = true # Enables polling before attempting discovery so hot-plugged Steam Input devices can appear later in the same inspection.
 	_controller_handle = 0 # Forces controller discovery for the new modal session instead of retaining a stale disconnected handle.
 	_controller_type = 0 # Clears stale hardware diagnostics until a usable motion device is found.
+	_motion_ready = false # Requires fresh valid motion data before reporting the gyro as genuinely available.
 	_has_reference_orientation = false # Makes the first valid quaternion establish neutral orientation rather than rotate the sticker.
 	_previous_orientation = Quaternion.IDENTITY # Restores a harmless reference value until the first sensor sample arrives.
 	_motion_active = false # Clears movement state inherited from a previous inspection.
 	_invalid_orientation_samples = 0 # Clears any warm-up state inherited from a previous inspection.
 	_rejected_controller_handles.clear() # Allows every currently connected Steam Input device to be reconsidered for the new inspection session.
 	if not _ensure_input_initialized(): # Requires both a live Steam API session and the GodotSteam Steam Input bridge.
+		if OS.is_debug_build(): # Makes a missing Steam Input interface visible in development rather than silently degrading to right-stick control.
+			print("Steam inspection gyro unavailable: Steam Input initialization failed or required methods are missing") # Gives the developer an actionable boundary for the failure.
 		return false # Leaves right-stick inspection fully functional when Steam or Steam Input is unavailable.
 	_run_input_frame() # Requests the freshest controller state before the first discovery pass for lowest practical gyro latency.
-	return _discover_motion_controller() # Reports whether a gyro-capable Steam Input device is already available at inspection open.
+	return _discover_motion_controller() # Reports whether a gyro-capable Steam Input device is already discoverable at inspection open.
 
 func end_session() -> void: # Stops inspection-owned gyro tracking while leaving Steam Input initialized for later reuse.
 	_session_active = false # Prevents hidden inspection screens from polling controller motion every frame.
@@ -50,8 +55,8 @@ func recenter() -> void: # Makes the controller's next valid pose the new neutra
 	_motion_active = false # Avoids reporting motion during the single neutral-reference frame.
 	_invalid_orientation_samples = 0 # Restarts warm-up tolerance so a controller recalibration cannot be mistaken for a permanent motion failure.
 
-func is_available() -> bool: # Reports whether an open inspection currently has a discovered Steam Input motion device.
-	return _session_active and _controller_handle != 0 # Requires both modal ownership and a valid nonzero Steam Input handle.
+func is_available() -> bool: # Reports whether an open inspection currently has confirmed usable Steam Input motion data.
+	return _session_active and _controller_handle != 0 and _motion_ready # Requires discovery plus at least one valid orientation sample instead of equating hardware identity with working gyro data.
 
 func is_motion_active() -> bool: # Reports whether the most recent sampled quaternion moved beyond the deliberate jitter filter.
 	return is_available() and _motion_active # Suppresses stale movement state when the session or device is unavailable.
@@ -73,15 +78,23 @@ func sample_rotation_delta() -> Quaternion: # Returns one incremental controller
 	if _controller_handle == 0 and not _discover_motion_controller(): # Supports hot-plugging a Steam Controller or opening on hardware that initializes a few frames late.
 		return Quaternion.IDENTITY # Waits harmlessly until a usable motion controller becomes available.
 	var motion_data: Dictionary = _get_motion_data(_controller_handle) # Reads the raw sensor-fused quaternion from the selected Steam Input device.
-	if not _motion_data_has_valid_orientation(motion_data): # Allows Steam Input's documented IMU warm-up before declaring a selected controller unusable.
+	if not _motion_data_has_valid_orientation(motion_data): # Distinguishes discovered hardware from a controller that is actually producing motion data.
+		_motion_ready = false # Stops player-facing availability from claiming the gyro works while Steam is returning an invalid orientation.
 		_invalid_orientation_samples += 1 # Tracks consecutive invalid samples so a genuine disconnect does not leave the same dead handle selected forever.
 		_has_reference_orientation = false # Prevents the next valid sample from being compared against motion data from before the invalid interval.
 		_previous_orientation = Quaternion.IDENTITY # Removes the stale physical pose while waiting for a fresh valid sensor sample.
+		_debug_invalid_motion_sample(motion_data) # Surfaces the exact raw dictionary periodically so Steam configuration failures are diagnosable from one game log.
 		if _input_type_has_known_motion(_controller_type) and _invalid_orientation_samples <= MOTION_WARMUP_INVALID_SAMPLE_LIMIT: # Keeps polling a controller family that Steam Input documents as motion-capable while its IMU becomes ready.
 			return Quaternion.IDENTITY # Leaves the sticker stable during sensor warm-up instead of repeatedly dropping and rediscovering the device.
+		if OS.is_debug_build(): # Explains why a previously selected controller is being abandoned after the warm-up window expires.
+			print("Steam inspection gyro rejected: handle=%d type=%d invalid_samples=%d. Steam Input sees the controller but is not providing a valid motion quaternion; check the active Steam Input layout/gyro behavior." % [_controller_handle, _controller_type, _invalid_orientation_samples]) # Points directly at the common upstream configuration failure.
 		_rejected_controller_handles[_controller_handle] = true # Stops a persistently invalid device from monopolizing discovery for the rest of this inspection.
 		_release_controller() # Clears the failed selection so another connected motion controller can be considered on the next frame.
 		return Quaternion.IDENTITY # Leaves the sticker unchanged while controller discovery recovers.
+	if not _motion_ready: # Detects the first genuinely usable sensor sample after discovery or warm-up.
+		_motion_ready = true # Marks the selected controller as confirmed motion-capable for hints and diagnostics.
+		if OS.is_debug_build(): # Distinguishes successful sensor activation from the earlier hardware-selection message.
+			print("Steam inspection gyro ready: handle=%d type=%d label=%s motion=%s" % [_controller_handle, _controller_type, get_device_label(), str(motion_data)]) # Confirms that Steam is now delivering a valid orientation quaternion.
 	_invalid_orientation_samples = 0 # Clears warm-up failure state as soon as the selected controller produces a valid orientation.
 	var current_orientation: Quaternion = _quaternion_from_motion_data(motion_data) # Normalizes the valid Steam orientation before any delta calculation.
 	if not _has_reference_orientation: # Uses the first valid physical pose only as a neutral reference.
@@ -110,6 +123,8 @@ func _ensure_input_initialized() -> bool: # Lazily initializes Steam Input only 
 		return false # Avoids runtime method errors on incompatible addon builds.
 	var initialized: Variant = Steam.call(&"inputInit", true) # Explicitly gives this helper ownership of Steam Input frame synchronization because it performs low-latency runFrame calls itself.
 	_input_initialized = bool(initialized) # Caches the actual GodotSteam initialization result rather than assuming Steam API availability implies Input availability.
+	if OS.is_debug_build(): # Records Steam Input initialization explicitly because Steam API initialization alone does not prove the Input interface is active.
+		print("Steam inspection input initialization: result=%s" % str(_input_initialized)) # Gives one concise startup diagnostic without logging every frame.
 	return _input_initialized # Reports whether motion polling may proceed safely.
 
 func _run_input_frame() -> void: # Synchronizes Steam Input state immediately before motion reads when the installed GodotSteam build exposes the low-latency call.
@@ -134,17 +149,19 @@ func _discover_motion_controller() -> bool: # Chooses the first usable motion de
 			_add_candidate(candidates, packed_handle) # Adds the handle through the same validity and duplicate guard.
 	for candidate: int in candidates: # Preserves active player-controller ordering instead of letting a secondary built-in Deck gyro steal inspection ownership.
 		var candidate_type: int = _get_input_type(candidate) # Reads hardware classification before motion validation so known IMU devices can survive Steam Input's warm-up period.
-		var motion_data: Dictionary = _get_motion_data(candidate) # Performs the first motion read, which also activates the controller IMU according to Steam Input's lifecycle contract.
-		if not _motion_data_has_valid_orientation(motion_data) and not _input_type_has_known_motion(candidate_type): # Rejects devices without valid motion while allowing known gyro hardware time to warm up.
+		var motion_data: Dictionary = _get_motion_data(candidate) # Performs the first motion read for this candidate.
+		var has_valid_motion: bool = _motion_data_has_valid_orientation(motion_data) # Separates hardware discovery from actual sensor readiness for accurate diagnostics.
+		if not has_valid_motion and not _input_type_has_known_motion(candidate_type): # Rejects devices without valid motion while allowing known gyro hardware time to warm up.
 			continue # Checks the next connected Steam Input handle without changing session state.
 		_controller_handle = candidate # Commits the first usable or known-motion device according to active-player ordering.
 		_controller_type = candidate_type # Stores hardware classification for concise hints and warm-up handling.
+		_motion_ready = has_valid_motion # Reports availability immediately only when discovery already received a valid sensor-fused quaternion.
 		_has_reference_orientation = false # Makes this newly selected controller's first valid sample establish neutral orientation.
 		_previous_orientation = Quaternion.IDENTITY # Ensures no orientation from an earlier controller can participate in the new device's first delta.
 		_invalid_orientation_samples = 0 # Starts this controller's warm-up accounting from a clean state.
-		if OS.is_debug_build(): # Emits one concise development diagnostic without adding release-build console noise.
-			print("Steam inspection gyro selected: handle=%d type=%d label=%s" % [_controller_handle, _controller_type, get_device_label()]) # Identifies which Steam Input device currently owns motion during testing.
-		return true # Confirms that automatic inspection gyro polling can begin for the selected controller.
+		if OS.is_debug_build(): # Emits one concise development diagnostic without pretending hardware discovery proves usable motion data.
+			print("Steam inspection gyro selected: handle=%d type=%d label=%s motion_ready=%s initial_motion=%s" % [_controller_handle, _controller_type, get_device_label(), str(_motion_ready), str(motion_data)]) # Shows exactly whether the initial Steam motion dictionary is usable.
+		return true # Confirms that automatic inspection gyro polling can begin or continue warming the selected controller.
 	return false # Leaves inspection on right-stick/mouse rotation when no connected Steam Input controller can provide motion.
 
 func _add_candidate(candidates: Array[int], handle: int) -> void: # Adds one valid Steam Input handle exactly once while preserving discovery priority order.
@@ -155,6 +172,7 @@ func _add_candidate(candidates: Array[int], handle: int) -> void: # Adds one val
 func _release_controller() -> void: # Clears selected-device state while preserving Steam Input initialization and session ownership.
 	_controller_handle = 0 # Releases the current Steam Input device so discovery can choose another handle.
 	_controller_type = 0 # Clears device diagnostics together with the released handle.
+	_motion_ready = false # Clears confirmed sensor readiness together with the selected device.
 	_has_reference_orientation = false # Prevents a replacement controller from inheriting another device's physical pose.
 	_previous_orientation = Quaternion.IDENTITY # Restores a harmless orientation baseline until a new controller establishes neutral.
 	_motion_active = false # Clears movement state when no selected controller owns gyro input.
@@ -183,7 +201,7 @@ func _input_type_has_known_motion(controller_type: int) -> bool: # Identifies St
 func _motion_data_has_valid_orientation(data: Dictionary) -> bool: # Distinguishes a real normalized sensor-fused quaternion from zero-filled unsupported motion data.
 	if data.is_empty(): # Rejects missing motion structures immediately.
 		return false # Prevents invalid dictionary field reads and quaternion construction.
-	var x: float = _motion_field(data, "rotQuatX", "rot_quat_x") # Reads GodotSteam's established camelCase field while accepting a snake_case compatibility alias.
+	var x: float = _motion_field(data, "rotQuatX", "rot_quat_x") # Reads GodotSteam's established camelCase field while accepting its snake_case representation.
 	var y: float = _motion_field(data, "rotQuatY", "rot_quat_y") # Reads the sensor-fused Y quaternion component.
 	var z: float = _motion_field(data, "rotQuatZ", "rot_quat_z") # Reads the sensor-fused Z quaternion component.
 	var w: float = _motion_field(data, "rotQuatW", "rot_quat_w") # Reads the sensor-fused scalar quaternion component.
@@ -196,9 +214,21 @@ func _quaternion_from_motion_data(data: Dictionary) -> Quaternion: # Constructs 
 	return Quaternion(_motion_field(data, "rotQuatX", "rot_quat_x"), _motion_field(data, "rotQuatY", "rot_quat_y"), _motion_field(data, "rotQuatZ", "rot_quat_z"), _motion_field(data, "rotQuatW", "rot_quat_w")).normalized() # Preserves Steam's complete four-component absolute orientation before delta conversion.
 
 func _motion_field(data: Dictionary, camel_case: String, snake_case: String) -> float: # Reads one motion field across GodotSteam dictionary naming variants without exposing that compatibility logic to callers.
-	if data.has(camel_case): # Prefers the established GodotSteam/InputMotionData_t field spelling.
+	if data.has(camel_case): # Prefers the established GodotSteam/InputMotionData_t field spelling when present.
 		return float(data.get(camel_case, 0.0)) # Converts the raw Variant into the strongly typed float used by quaternion math.
-	return float(data.get(snake_case, 0.0)) # Falls back to a common snake_case bridge spelling when present, otherwise returning a safe zero.
+	return float(data.get(snake_case, 0.0)) # Falls back to GodotSteam's snake_case bridge spelling when present, otherwise returning a safe zero.
+
+func _debug_invalid_motion_sample(data: Dictionary) -> void: # Emits sparse debug evidence when Steam Input sees gyro hardware but does not provide a usable orientation.
+	if not OS.is_debug_build(): # Keeps release builds free from controller diagnostic noise.
+		return # Restricts raw motion logging to development sessions.
+	if _invalid_orientation_samples != 1 and _invalid_orientation_samples % MOTION_DEBUG_SAMPLE_INTERVAL != 0: # Logs the first failure immediately and then only periodic persistent failures.
+		return # Avoids one console line per rendered frame.
+	var x: float = _motion_field(data, "rotQuatX", "rot_quat_x") # Reads the exact X component used by validity testing.
+	var y: float = _motion_field(data, "rotQuatY", "rot_quat_y") # Reads the exact Y component used by validity testing.
+	var z: float = _motion_field(data, "rotQuatZ", "rot_quat_z") # Reads the exact Z component used by validity testing.
+	var w: float = _motion_field(data, "rotQuatW", "rot_quat_w") # Reads the exact scalar component used by validity testing.
+	var length_squared: float = x * x + y * y + z * z + w * w # Shows whether Steam is returning zeros, malformed values, or a near-normalized orientation.
+	print("Steam inspection gyro waiting for valid motion: handle=%d type=%d sample=%d quaternion=(%.6f, %.6f, %.6f, %.6f) length_squared=%.6f raw=%s" % [_controller_handle, _controller_type, _invalid_orientation_samples, x, y, z, w, length_squared, str(data)]) # Gives one self-contained diagnostic line suitable for pasting into a bug report.
 
 func _steam_delta_to_godot(steam_delta: Quaternion) -> Quaternion: # Converts Steam's incremental sensor-fused rotation into the Godot inspection basis without using Euler angles.
 	var axis_conversion: Quaternion = Quaternion(Vector3.RIGHT, -PI * 0.5) # Maps the Steam motion frame into the inspection world's right/up/back convention while preserving a proper rotational basis.
